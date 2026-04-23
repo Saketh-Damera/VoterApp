@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSupabaseServer } from "@/lib/supabase/server";
+import PersonAIActions from "./PersonAIActions";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +113,9 @@ export default async function PersonPage({
           {p.voter.res_city ? ", " + p.voter.res_city : ""}
           {p.voter.res_zip ? " " + p.voter.res_zip : ""}
         </p>
+        <div className="mt-3">
+          <PersonAIActions ncid={ncid} />
+        </div>
       </header>
 
       <section className="mb-6 grid grid-cols-2 gap-3 text-sm">

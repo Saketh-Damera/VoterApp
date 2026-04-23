@@ -39,8 +39,10 @@ export default function AppHeader({ profile }: { profile: CandidateProfile | nul
               {dayLabel}
             </span>
           )}
-          <Link href="/clusters" className="btn-ghost" title="Address clusters">📍 Clusters</Link>
-          <Link href="/lists" className="btn-ghost" title="Voter lists">📋 Lists</Link>
+          <Link href="/todos" className="btn-ghost hidden sm:inline-flex" title="To-dos">✓ Todos</Link>
+          <Link href="/fundraising" className="btn-ghost hidden sm:inline-flex" title="Fundraising">$ Raise</Link>
+          <Link href="/clusters" className="btn-ghost hidden sm:inline-flex" title="Address clusters">📍 Clusters</Link>
+          <Link href="/lists" className="btn-ghost hidden sm:inline-flex" title="Voter lists">📋 Lists</Link>
           <Link href="/people/new" className="btn-primary">+ Add Person</Link>
           <Link href="/settings" className="btn-ghost" title="Settings">⚙</Link>
           <LogoutButton />
