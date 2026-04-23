@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSupabaseServer } from "@/lib/supabase/server";
-import AppHeader, { type CandidateProfile } from "@/components/AppHeader";
+import AppShell, { type CandidateProfile } from "@/components/AppShell";
 import DoneButton from "@/components/DoneButton";
 
 export const dynamic = "force-dynamic";
@@ -81,9 +81,7 @@ export default async function HomePage() {
   const actions = (actionsRaw as PriorityAction[] | null) ?? [];
 
   return (
-    <main className="mx-auto max-w-6xl px-5 pb-16 pt-6">
-      <AppHeader profile={profile ?? null} />
-
+    <AppShell profile={profile ?? null}>
       {/* Stats row */}
       {stats && (
         <section className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
@@ -259,7 +257,7 @@ export default async function HomePage() {
           )}
         </section>
       </div>
-    </main>
+    </AppShell>
   );
 }
 

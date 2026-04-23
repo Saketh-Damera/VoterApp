@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSupabaseServer } from "@/lib/supabase/server";
-import AppHeader, { type CandidateProfile } from "@/components/AppHeader";
+import AppShell, { type CandidateProfile } from "@/components/AppShell";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +28,7 @@ export default async function ClustersPage() {
   const clusters = (raw as Cluster[] | null) ?? [];
 
   return (
-    <main className="mx-auto max-w-3xl px-5 pb-16 pt-6">
-      <AppHeader profile={profile ?? null} />
+    <AppShell profile={profile ?? null}>
 
       <section className="mb-6">
         <h2 className="section-label mb-1">Neighbor clusters</h2>
@@ -89,6 +88,6 @@ export default async function ClustersPage() {
           ))}
         </ul>
       )}
-    </main>
+    </AppShell>
   );
 }

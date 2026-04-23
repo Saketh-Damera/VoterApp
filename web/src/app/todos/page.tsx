@@ -1,5 +1,5 @@
 import { getSupabaseServer } from "@/lib/supabase/server";
-import AppHeader, { type CandidateProfile } from "@/components/AppHeader";
+import AppShell, { type CandidateProfile } from "@/components/AppShell";
 import TodosClient from "./TodosClient";
 
 export const dynamic = "force-dynamic";
@@ -32,10 +32,9 @@ export default async function TodosPage() {
     .returns<Todo[]>();
 
   return (
-    <main className="mx-auto max-w-3xl px-5 pb-16 pt-6">
-      <AppHeader profile={profile ?? null} />
+    <AppShell profile={profile ?? null}>
       <h2 className="section-label mb-3">To-dos</h2>
       <TodosClient initial={todos ?? []} />
-    </main>
+    </AppShell>
   );
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSupabaseServer } from "@/lib/supabase/server";
-import AppHeader, { type CandidateProfile } from "@/components/AppHeader";
+import AppShell, { type CandidateProfile } from "@/components/AppShell";
 
 export const dynamic = "force-dynamic";
 
@@ -30,9 +30,7 @@ export default async function ListsPage() {
     .returns<List[]>();
 
   return (
-    <main className="mx-auto max-w-3xl px-5 pb-16 pt-6">
-      <AppHeader profile={profile ?? null} />
-
+    <AppShell profile={profile ?? null}>
       <section className="mb-5">
         <div className="flex items-baseline justify-between">
           <h2 className="section-label">Voter lists</h2>
@@ -69,6 +67,6 @@ export default async function ListsPage() {
           ))}
         </ul>
       )}
-    </main>
+    </AppShell>
   );
 }

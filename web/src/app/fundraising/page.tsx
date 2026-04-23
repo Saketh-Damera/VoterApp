@@ -1,5 +1,5 @@
 import { getSupabaseServer } from "@/lib/supabase/server";
-import AppHeader, { type CandidateProfile } from "@/components/AppHeader";
+import AppShell, { type CandidateProfile } from "@/components/AppShell";
 import FundraisingClient from "./FundraisingClient";
 
 export const dynamic = "force-dynamic";
@@ -41,10 +41,9 @@ export default async function FundraisingPage() {
   const goal = profile?.fundraising_goal ?? null;
 
   return (
-    <main className="mx-auto max-w-5xl px-5 pb-16 pt-6">
-      <AppHeader profile={profile ?? null} />
+    <AppShell profile={profile ?? null}>
       <h2 className="section-label mb-3">Fundraising</h2>
       <FundraisingClient initial={prospects ?? []} goal={goal} />
-    </main>
+    </AppShell>
   );
 }
