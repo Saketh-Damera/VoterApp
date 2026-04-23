@@ -1,18 +1,23 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Fraunces, Rubik_Mono_One, Anton } from "next/font/google";
+import { Plus_Jakarta_Sans, Instrument_Serif, Fraunces, Rubik_Mono_One, Anton } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Primary UI face
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+// Editorial display face for hero page titles
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-serif",
   subsets: ["latin"],
+  weight: ["400"],
+  style: ["normal", "italic"],
 });
 
-// Logo letter fonts — each letter uses a different display face.
+// Per-letter fonts for the JED logo (only used in JedLogo)
 const fraunces = Fraunces({
   variable: "--font-logo-j",
   subsets: ["latin"],
@@ -44,9 +49,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${rubikMono.variable} ${anton.variable} h-full antialiased`}
+      className={`${jakarta.variable} ${instrumentSerif.variable} ${fraunces.variable} ${rubikMono.variable} ${anton.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">{children}</body>
     </html>
   );
 }

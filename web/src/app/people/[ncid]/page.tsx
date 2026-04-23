@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import PersonAIActions from "./PersonAIActions";
 import FundraiseButton from "./FundraiseButton";
-import { sentimentChip, priorityChip } from "@/lib/ui/chips";
+import { sentimentChip } from "@/lib/ui/chips";
+import { voteTag, raceLabelFor } from "@/lib/ui/voteTag";
 
 export const dynamic = "force-dynamic";
 
@@ -87,8 +88,22 @@ export default async function PersonPage({
     .order("created_at", { ascending: false })
     .returns<Interaction[]>();
 
-  const { data: priorityData } = await supabase.rpc("voter_priority", { p_ncid: ncid });
-  const priority = typeof priorityData === "number" ? priorityData : null;
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: candidateRow } = await supabase
+    .from("candidates")
+    .select("race_type")
+    .eq("user_id", user!.id)
+    .maybeSingle<{ race_type: string | null }>();
+  const raceLabel = raceLabelFor(candidateRow?.race_type ?? null);
+
+  const { data: relevanceRaw } = await supabase.rpc("voter_relevance", { p_ncid: ncid });
+  type Relevance = {
+    relevant_votes: number;
+    total_votes: number;
+    recent_votes: number;
+    last_voted: string | null;
+  };
+  const relevance = (relevanceRaw as Relevance | null) ?? null;
 
   const { data: prospectRow } = await supabase
     .from("fundraising_prospects")
@@ -107,28 +122,26 @@ export default async function PersonPage({
     .filter(Boolean)
     .join(" ");
 
-  const turnoutTier = turnoutCategory(p.turnout);
+  const voteBadge = relevance
+    ? voteTag(relevance.relevant_votes, relevance.total_votes, raceLabel)
+    : null;
 
   return (
     <main className="mx-auto max-w-2xl px-5 pb-16 pt-6">
-      <header className="mb-5 border-b border-[var(--color-border)] pb-4">
+      <header className="mb-6 border-b border-[var(--color-border)] pb-5">
         <Link href="/" className="btn-ghost">Home</Link>
         <div className="mt-2 flex items-baseline justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--color-ink)]">
-            {fullName}
-          </h1>
-          {priority !== null && (
-            <span className={`chip ${priorityChip(priority)}`}>
-              priority {Math.round(priority)}
-            </span>
+          <h1 className="page-title">{fullName}</h1>
+          {voteBadge && (
+            <span className={`chip ${voteBadge.chipClass}`}>{voteBadge.text}</span>
           )}
         </div>
-        <p className="mt-1 text-sm text-[var(--color-ink-subtle)]">
+        <p className="mt-2 page-subtitle">
           {p.voter.res_street_address}
           {p.voter.res_city ? ", " + p.voter.res_city : ""}
           {p.voter.res_zip ? " " + p.voter.res_zip : ""}
         </p>
-        <div className="mt-3">
+        <div className="mt-4">
           <PersonAIActions ncid={ncid} />
         </div>
       </header>
@@ -139,14 +152,14 @@ export default async function PersonPage({
         <Fact label="Precinct" value={p.voter.precinct_desc} />
         <Fact label="Registered" value={p.voter.registr_dt} />
         <Fact
-          label="Turnout"
+          label={`Votes (${raceLabel})`}
           value={
-            p.turnout
-              ? `${turnoutTier} — ${p.turnout.generals_voted} general, ${p.turnout.elections_voted} total`
+            relevance
+              ? `${relevance.relevant_votes} of ${relevance.total_votes} total`
               : "—"
           }
         />
-        <Fact label="Last voted" value={p.turnout?.last_voted ?? null} />
+        <Fact label="Last voted" value={relevance?.last_voted ?? p.turnout?.last_voted ?? null} />
       </section>
 
       {/* Fundraising link/badge */}
@@ -260,10 +273,4 @@ function Fact({ label, value }: { label: string; value: string | null }) {
   );
 }
 
-function turnoutCategory(t: Turnout): string {
-  if (!t) return "Low";
-  if (t.generals_voted >= 3) return "High";
-  if (t.generals_voted >= 1) return "Medium";
-  return "Low";
-}
 

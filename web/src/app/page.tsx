@@ -5,7 +5,8 @@ import AppShell, { type CandidateProfile } from "@/components/AppShell";
 import DoneButton from "@/components/DoneButton";
 import DailyBriefCard from "@/components/DailyBriefCard";
 import DemoBanner from "@/components/DemoBanner";
-import { sentimentChip, priorityChip } from "@/lib/ui/chips";
+import { sentimentChip } from "@/lib/ui/chips";
+import { voteTag, raceLabelFor } from "@/lib/ui/voteTag";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,8 @@ type PriorityAction = {
   message: string | null;
   due_at: string;
   sentiment: string | null;
-  priority: number;
+  relevant_votes: number | null;
+  total_votes: number | null;
 };
 
 type Stats = {
@@ -52,16 +54,17 @@ type Todo = {
   due_date: string | null;
 };
 
+type ExtendedProfile = CandidateProfile & { race_type: string | null };
+
 export default async function HomePage() {
   const supabase = await getSupabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // First-run: if no candidate profile, send to settings to set up.
   const { data: profile } = await supabase
     .from("candidates")
-    .select("candidate_name, office, jurisdiction, election_date")
+    .select("candidate_name, office, jurisdiction, election_date, race_type")
     .eq("user_id", user!.id)
-    .maybeSingle<CandidateProfile>();
+    .maybeSingle<ExtendedProfile>();
   if (!profile) redirect("/settings");
 
   const [
@@ -89,19 +92,29 @@ export default async function HomePage() {
 
   const stats = (statsData as Stats | null) ?? null;
   const actions = (actionsRaw as PriorityAction[] | null) ?? [];
+  const raceLabel = raceLabelFor(profile.race_type);
 
   const isDemo = user?.is_anonymous === true;
 
   return (
     <AppShell profile={profile ?? null}>
       {isDemo && <DemoBanner />}
+
+      {/* Hero */}
+      <header className="mb-8 border-b border-[var(--color-border)] pb-6">
+        <h1 className="page-title">Good to see you.</h1>
+        <p className="page-subtitle mt-2">
+          Today&apos;s picture of your campaign — priorities, conversations, and money.
+        </p>
+      </header>
+
       {/* Stats row */}
       {stats && (
-        <section className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+        <section className="mb-8 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-6">
           <Stat label="People tracked" value={stats.people_tracked.toLocaleString()} />
           <Stat label="This week" value={String(stats.interactions_7d)} sub="interactions" />
-          <Stat label="Supportive" value={String(stats.supportive_count)} tone="success" />
-          <Stat label="Undecided" value={String(stats.undecided_count)} tone="warning" />
+          <Stat label="Supportive" value={String(stats.supportive_count)} />
+          <Stat label="Undecided" value={String(stats.undecided_count)} />
           <Stat
             label="Fundraising"
             value={"$" + Math.round(stats.fundraising_committed).toLocaleString()}
@@ -111,41 +124,39 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* Daily brief banner */}
-      <section className="mb-6">
+      <section className="mb-8">
         <DailyBriefCard />
       </section>
 
-      {/* 3-col dashboard on large screens */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Col 1: Top priorities */}
-        <section className="lg:col-span-1">
-          <h2 className="section-label mb-3">Top priorities</h2>
+      {/* 3-col dashboard */}
+      <div className="grid gap-8 lg:grid-cols-3">
+        <section>
+          <h2 className="section-label mb-4">Follow-ups due</h2>
           {!actions.length ? (
-            <div className="card p-4 text-sm text-[var(--color-ink-subtle)]">
-              No follow-ups scheduled yet.
-            </div>
+            <p className="text-sm text-[var(--color-ink-subtle)]">
+              Nothing scheduled. Log a conversation to seed follow-ups.
+            </p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {actions.map((a) => {
                 const name = [a.first_name, a.last_name].filter(Boolean).join(" ") || "(unmatched)";
                 const href = a.voter_ncid ? `/people/${a.voter_ncid}` : "#";
+                const tag = voteTag(a.relevant_votes, a.total_votes, raceLabel);
                 return (
-                  <li key={a.id} className="card card-hover p-3">
-                    <div className="flex items-start justify-between gap-2">
+                  <li key={a.id} className="border-b border-[var(--color-border)] pb-3 last:border-0">
+                    <div className="flex items-start justify-between gap-3">
                       <Link href={href} className="flex-1">
                         <div className="flex items-baseline gap-2">
-                          <span className="font-medium text-sm">{name}</span>
-                          <span className={`chip ${priorityChip(a.priority)}`}>
-                            {Math.round(a.priority)}
-                          </span>
+                          <span className="font-medium">{name}</span>
+                          <span className={`chip ${tag.chipClass}`}>{tag.text}</span>
                         </div>
                         <div className="mt-0.5 text-xs text-[var(--color-ink-subtle)]">
-                          {a.res_city ?? ""}
+                          due {new Date(a.due_at).toLocaleDateString()}
+                          {a.res_city && <span> · {a.res_city}</span>}
                           {a.sentiment && <span> · {a.sentiment.replace(/_/g, " ")}</span>}
                         </div>
                         {a.message && (
-                          <p className="mt-1 text-xs text-[var(--color-ink-muted)]">{a.message}</p>
+                          <p className="mt-1 text-sm text-[var(--color-ink-muted)]">{a.message}</p>
                         )}
                       </Link>
                       <DoneButton reminderId={a.id} />
@@ -157,23 +168,19 @@ export default async function HomePage() {
           )}
         </section>
 
-        {/* Col 2: Todos + reminders */}
-        <section className="lg:col-span-1">
-          <div className="mb-3 flex items-baseline justify-between">
+        <section>
+          <div className="mb-4 flex items-baseline justify-between">
             <h2 className="section-label">Your agenda</h2>
             <Link href="/todos" className="btn-ghost text-xs">manage</Link>
           </div>
           {!todos?.length ? (
-            <div className="card p-4 text-sm text-[var(--color-ink-subtle)]">
-              No to-dos open.
-              <Link href="/todos" className="ml-2 text-[var(--color-primary)] hover:underline">
-                add one
-              </Link>
-            </div>
+            <p className="text-sm text-[var(--color-ink-subtle)]">
+              Nothing on the list. <Link href="/todos" className="underline hover:text-[var(--color-ink)]">Add one.</Link>
+            </p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {todos.map((t) => (
-                <li key={t.id} className="card card-hover p-3 text-sm">
+                <li key={t.id} className="border-b border-[var(--color-border)] pb-3 last:border-0 text-sm">
                   <Link href="/todos" className="flex items-baseline justify-between gap-3">
                     <span>{t.title}</span>
                     {t.due_date && (
@@ -187,31 +194,31 @@ export default async function HomePage() {
             </ul>
           )}
 
-          <div className="mt-6">
+          <div className="mt-8">
             <div className="mb-2 flex items-baseline justify-between">
               <h2 className="section-label">Fundraising</h2>
               <Link href="/fundraising" className="btn-ghost text-xs">pipeline</Link>
             </div>
             {stats && (
-              <div className="card p-4">
+              <div>
                 <div className="flex items-baseline justify-between">
                   <span className="text-sm text-[var(--color-ink-muted)]">Committed</span>
-                  <span className="text-lg font-semibold text-[var(--color-ink)]">
+                  <span className="serif text-2xl italic text-[var(--color-ink)]">
                     ${Math.round(stats.fundraising_committed).toLocaleString()}
                   </span>
                 </div>
                 {stats.fundraising_goal && (
                   <>
-                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--color-surface-muted)]">
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-muted)]">
                       <div
-                        className="h-full bg-[var(--color-primary)]"
+                        className="h-full bg-[var(--color-ink)]"
                         style={{
                           width: `${Math.min(100, Math.round((stats.fundraising_committed / stats.fundraising_goal) * 100))}%`,
                         }}
                       />
                     </div>
                     <p className="mt-1 text-xs text-[var(--color-ink-subtle)]">
-                      Goal ${Math.round(stats.fundraising_goal).toLocaleString()}
+                      of ${Math.round(stats.fundraising_goal).toLocaleString()} goal
                     </p>
                   </>
                 )}
@@ -220,27 +227,26 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* Col 3: Recent interactions */}
-        <section className="lg:col-span-1">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="section-label">Recent interactions</h2>
+        <section>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="section-label">Recent conversations</h2>
             <a href="/api/export/interactions" className="btn-ghost text-xs" title="Download XLSX">
               Export
             </a>
           </div>
           {!interactions?.length ? (
-            <div className="card p-4 text-sm text-[var(--color-ink-subtle)]">
-              No interactions yet. Add one.
-            </div>
+            <p className="text-sm text-[var(--color-ink-subtle)]">
+              No conversations yet.
+            </p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {interactions.map((i) => {
                 const name = i.voters
                   ? `${i.voters.first_name ?? ""} ${i.voters.last_name ?? ""}`.trim()
                   : i.captured_name;
                 const href = i.voter_ncid ? `/people/${i.voter_ncid}` : "#";
                 return (
-                  <li key={i.id} className="card card-hover p-3">
+                  <li key={i.id} className="border-b border-[var(--color-border)] pb-3 last:border-0">
                     <Link href={href} className="block">
                       <div className="flex items-baseline justify-between gap-2">
                         <span className="font-medium text-sm">{name}</span>
@@ -249,7 +255,7 @@ export default async function HomePage() {
                         </span>
                       </div>
                       {i.notes && (
-                        <p className="mt-1 line-clamp-2 text-xs text-[var(--color-ink-muted)]">
+                        <p className="mt-1 line-clamp-2 text-sm text-[var(--color-ink-muted)]">
                           {i.notes}
                         </p>
                       )}
@@ -261,9 +267,6 @@ export default async function HomePage() {
                         )}
                         {i.issues?.slice(0, 2).map((x) => (
                           <span key={`iss-${x}`} className="chip chip-primary">{x}</span>
-                        ))}
-                        {i.tags?.slice(0, 2).map((x) => (
-                          <span key={`tag-${x}`} className="chip chip-neutral">{x}</span>
                         ))}
                         {!i.voter_ncid && <span className="chip chip-warning">unmatched</span>}
                       </div>
@@ -283,25 +286,16 @@ function Stat({
   label,
   value,
   sub,
-  tone = "neutral",
 }: {
   label: string;
   value: string;
   sub?: string;
-  tone?: "neutral" | "success" | "warning";
 }) {
-  const toneClass =
-    tone === "success"
-      ? "text-[var(--color-success)]"
-      : tone === "warning"
-      ? "text-[var(--color-warning)]"
-      : "text-[var(--color-ink)]";
   return (
-    <div className="card px-3 py-2">
-      <div className="text-[0.6875rem] uppercase tracking-wide text-[var(--color-ink-subtle)]">{label}</div>
-      <div className={`mt-0.5 text-lg font-semibold ${toneClass}`}>{value}</div>
-      {sub && <div className="text-[0.6875rem] text-[var(--color-ink-subtle)]">{sub}</div>}
+    <div>
+      <div className="section-label">{label}</div>
+      <div className="serif mt-1 text-2xl italic text-[var(--color-ink)]">{value}</div>
+      {sub && <div className="mt-0.5 text-xs text-[var(--color-ink-subtle)]">{sub}</div>}
     </div>
   );
 }
-

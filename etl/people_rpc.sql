@@ -1,5 +1,5 @@
--- Aggregates all voters the current user has talked to, with their latest
--- sentiment/issues/tags + their current priority score.
+-- Updated people_talked_to: returns relevant + total vote counts instead of priority.
+drop function if exists people_talked_to(int);
 create or replace function people_talked_to(p_limit int default 500)
 returns table (
     voter_ncid         text,
@@ -13,7 +13,8 @@ returns table (
     last_tags          text[],
     last_contact       timestamptz,
     interaction_count  int,
-    priority           numeric
+    relevant_votes     int,
+    total_votes        int
 )
 language sql
 stable
@@ -45,7 +46,8 @@ as $$
         l.tags      as last_tags,
         l.created_at as last_contact,
         (select count(*)::int from interactions i2 where i2.voter_ncid = v.ncid and i2.user_id = auth.uid()) as interaction_count,
-        voter_priority(v.ncid) as priority
+        ((voter_relevance(v.ncid)->>'relevant_votes')::int) as relevant_votes,
+        ((voter_relevance(v.ncid)->>'total_votes')::int) as total_votes
     from voters v
     join latest l on l.voter_ncid = v.ncid
     order by l.created_at desc

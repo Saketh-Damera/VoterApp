@@ -39,12 +39,19 @@ export default function DebriefClient() {
   const [voiceNote, setVoiceNote] = useState<string | null>(null);
   const [result, setResult] = useState<null | {
     voter_ncid: string | null;
+    todos_created: number;
     extract: {
       captured_name: string;
       sentiment: string;
       issues: string[];
       tags: string[];
       follow_up: { days_until: number; action: string } | null;
+      mentioned_people: Array<{
+        name: string;
+        relationship: string;
+        context: string;
+        should_contact: boolean;
+      }>;
     };
   }>(null);
   const recRef = useRef<SRInstance | null>(null);
@@ -238,6 +245,34 @@ export default function DebriefClient() {
               />
             )}
           </dl>
+
+          {result.extract.mentioned_people.length > 0 && (
+            <div className="mt-4 border-t border-[var(--color-border)] pt-3">
+              <div className="section-label mb-2">Others mentioned</div>
+              <ul className="space-y-2">
+                {result.extract.mentioned_people.map((m, i) => (
+                  <li key={i} className="text-sm">
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-medium">{m.name}</span>
+                      {m.relationship && (
+                        <span className="text-xs text-[var(--color-ink-subtle)]">{m.relationship}</span>
+                      )}
+                      {m.should_contact && (
+                        <span className="chip chip-warm">follow-up created</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-[var(--color-ink-muted)]">{m.context}</p>
+                  </li>
+                ))}
+              </ul>
+              {result.todos_created > 0 && (
+                <p className="mt-2 text-xs text-[var(--color-ink-subtle)]">
+                  Added {result.todos_created} to-do{result.todos_created === 1 ? "" : "s"} for the people
+                  the voter said to follow up with. See them in <a href="/todos" className="underline">To-dos</a>.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

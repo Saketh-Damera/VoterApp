@@ -17,18 +17,29 @@ export const DebriefExtract = z.object({
     .nullable(),
   wants_sign: z.boolean().describe("Did they say they want a yard sign?"),
   wants_to_volunteer: z.boolean().describe("Did they offer to volunteer, host, or help?"),
+  mentioned_people: z
+    .array(
+      z.object({
+        name: z.string().describe("Person's name as stated (first + last if given)."),
+        relationship: z.string().describe("Relationship to the voter ('spouse', 'neighbor', 'coworker at X', etc.)."),
+        context: z.string().describe("What the voter said about them."),
+        should_contact: z.boolean().describe("Did the voter suggest or imply the candidate should reach out to this person?"),
+      }),
+    )
+    .describe("Other people the voter named during the conversation. Empty array if none."),
 });
 export type DebriefExtract = z.infer<typeof DebriefExtract>;
 
-const SYSTEM = `You are parsing a candidate's voice-dictated debrief after a voter conversation into structured data.
+const SYSTEM = `You are parsing a candidate's debrief after a voter conversation into structured data.
 
-Extract: the person's name, where they talked, the substance of the conversation, issues raised, sentiment, person tags, a follow-up plan, and whether they asked for a yard sign or offered to help.
+Extract: the primary person's name and context, substance, issues, sentiment, tags, a follow-up plan, yard-sign/volunteer flags, and a list of OTHER people the voter named (spouse, neighbor, coworker, friend).
 
 Rules:
 - Be faithful to what was actually said. Don't invent.
 - Pick a single short sentiment value; default to unknown if unclear.
 - Issue and tag tokens are lowercase and hyphenated ('oak-traffic', 'public-schools').
-- Follow-up should be null if nothing needs one; otherwise a specific action + 1-30 days.`;
+- Follow-up should be null if nothing needs one; otherwise a specific action + 1-30 days.
+- mentioned_people: any time a second human is named (even just a first name). Set should_contact=true when the voter actively referred the candidate ("you should talk to Mary", "my neighbor Bob would sign a petition") or when the person sounds like a warm door (fellow teacher, PTA friend, business contact).`;
 
 export async function extractDebrief(transcript: string): Promise<DebriefExtract> {
   const client = new Anthropic();

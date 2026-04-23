@@ -81,11 +81,25 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // Auto-create todos for any mentioned people the candidate should contact.
+  const toContact = (extract.mentioned_people ?? []).filter((p) => p.should_contact);
+  for (const p of toContact) {
+    const due = new Date();
+    due.setDate(due.getDate() + 7);
+    await supabase.from("todos").insert({
+      user_id: user.id,
+      title: `Reach out to ${p.name} (referred by ${extract.captured_name || "voter"})`,
+      notes: `${p.relationship ? p.relationship + " — " : ""}${p.context}`,
+      due_date: due.toISOString().slice(0, 10),
+    });
+  }
+
   return Response.json({
     ok: true,
     interaction_id: inserted.id,
     voter_ncid: pickedNcid,
     extract,
     match_candidates: matches,
+    todos_created: toContact.length,
   });
 }

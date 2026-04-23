@@ -12,7 +12,18 @@ type Candidate = {
   election_date: string | null;
   fundraising_goal: number | null;
   scratchpad: string | null;
+  race_type: string | null;
 };
+
+const RACE_TYPES: Array<{ value: string; label: string; desc: string }> = [
+  { value: "primary_dem", label: "Democratic primary", desc: "Voters who vote in Dem primaries" },
+  { value: "primary_rep", label: "Republican primary", desc: "Voters who vote in Rep primaries" },
+  { value: "primary_any", label: "Non-partisan primary", desc: "Voters who vote in any primary" },
+  { value: "general",     label: "General election",    desc: "Voters who show up in generals" },
+  { value: "municipal",   label: "Municipal / local",   desc: "Voters who show up for local races (usually low turnout)" },
+  { value: "special",     label: "Special election",    desc: "Voters reliable in off-cycle specials" },
+  { value: "unspecified", label: "Not sure yet",        desc: "Show total vote counts instead" },
+];
 
 export default function SettingsForm({
   initial,
@@ -29,6 +40,7 @@ export default function SettingsForm({
   const [electionDate, setElectionDate] = useState(initial?.election_date ?? "");
   const [goal, setGoal] = useState(initial?.fundraising_goal?.toString() ?? "");
   const [scratchpad, setScratchpad] = useState(initial?.scratchpad ?? "");
+  const [raceType, setRaceType] = useState(initial?.race_type ?? "unspecified");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -52,6 +64,7 @@ export default function SettingsForm({
       election_date: electionDate || null,
       fundraising_goal: goalNum,
       scratchpad: scratchpad,
+      race_type: raceType,
     });
     setSaving(false);
     if (error) {
@@ -97,13 +110,28 @@ export default function SettingsForm({
         />
       </Field>
 
-      <Field label="Election date" hint="Drives the GOTV-window priority boost.">
+      <Field label="Election date" hint="Drives the GOTV-window boost.">
         <input
           type="date"
           value={electionDate}
           onChange={(e) => setElectionDate(e.target.value)}
           className="input"
         />
+      </Field>
+
+      <Field label="Race type" hint="JED tags voters by how often they've voted in races of this type.">
+        <select
+          value={raceType}
+          onChange={(e) => setRaceType(e.target.value)}
+          className="input"
+        >
+          {RACE_TYPES.map((r) => (
+            <option key={r.value} value={r.value}>{r.label}</option>
+          ))}
+        </select>
+        <span className="mt-1 block text-xs text-[var(--color-ink-subtle)]">
+          {RACE_TYPES.find((r) => r.value === raceType)?.desc}
+        </span>
       </Field>
 
       <Field label="Fundraising goal ($)" hint="Shows as a progress bar on the dashboard and /fundraising.">

@@ -16,8 +16,11 @@ export type TalkedTo = {
   last_tags: string[] | null;
   last_contact: string;
   interaction_count: number;
-  priority: number | null;
+  relevant_votes: number | null;
+  total_votes: number | null;
 };
+
+type ExtendedProfile = CandidateProfile & { race_type: string | null };
 
 export default async function PeoplePage() {
   const supabase = await getSupabaseServer();
@@ -25,22 +28,27 @@ export default async function PeoplePage() {
 
   const { data: profile } = await supabase
     .from("candidates")
-    .select("candidate_name, office, jurisdiction, election_date")
+    .select("candidate_name, office, jurisdiction, election_date, race_type")
     .eq("user_id", user!.id)
-    .maybeSingle<CandidateProfile>();
+    .maybeSingle<ExtendedProfile>();
 
   const { data: raw } = await supabase.rpc("people_talked_to", { p_limit: 500 });
   const people = (raw as TalkedTo[] | null) ?? [];
 
   return (
     <AppShell profile={profile ?? null}>
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="section-label">Voters contacted ({people.length})</h2>
-        <a href="/api/export/interactions" className="btn-ghost text-xs" title="Download XLSX">
-          Export to Excel
-        </a>
-      </div>
-      <PeopleClient initial={people} />
+      <header className="mb-6 border-b border-[var(--color-border)] pb-6">
+        <div className="flex items-baseline justify-between">
+          <h1 className="page-title">Voters contacted</h1>
+          <a href="/api/export/interactions" className="btn-ghost text-xs" title="Download XLSX">
+            Export to Excel
+          </a>
+        </div>
+        <p className="page-subtitle mt-2">
+          {people.length} {people.length === 1 ? "voter" : "voters"} you&apos;ve logged a conversation with.
+        </p>
+      </header>
+      <PeopleClient initial={people} raceType={profile?.race_type ?? null} />
     </AppShell>
   );
 }

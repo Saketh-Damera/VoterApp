@@ -14,6 +14,7 @@ type Candidate = {
   election_date: string | null;
   fundraising_goal: number | null;
   scratchpad: string | null;
+  race_type: string | null;
 };
 
 export default async function SettingsPage() {
@@ -24,7 +25,7 @@ export default async function SettingsPage() {
   const [{ data: existing }, { count: listCount }] = await Promise.all([
     supabase
       .from("candidates")
-      .select("user_id, candidate_name, office, jurisdiction, election_date, fundraising_goal, scratchpad")
+      .select("user_id, candidate_name, office, jurisdiction, election_date, fundraising_goal, scratchpad, race_type")
       .eq("user_id", user.id)
       .maybeSingle<Candidate>(),
     supabase
