@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import PersonAIActions from "./PersonAIActions";
 import FundraiseButton from "./FundraiseButton";
+import { sentimentChip, priorityChip } from "@/lib/ui/chips";
 
 export const dynamic = "force-dynamic";
 
@@ -266,24 +267,3 @@ function turnoutCategory(t: Turnout): string {
   return "Low";
 }
 
-function sentimentChip(s: string): string {
-  switch (s) {
-    case "supportive":
-    case "leaning_supportive":
-      return "chip-success";
-    case "opposed":
-    case "leaning_opposed":
-      return "chip-danger";
-    case "undecided":
-      return "chip-warning";
-    default:
-      return "chip-neutral";
-  }
-}
-
-function priorityChip(p: number): string {
-  if (p >= 50) return "chip-danger";
-  if (p >= 25) return "chip-warning";
-  if (p >= 10) return "chip-primary";
-  return "chip-neutral";
-}

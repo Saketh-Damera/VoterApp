@@ -94,13 +94,16 @@ export default function FundraisingClient({
         />
       </div>
 
-      <div className="mb-4 flex items-baseline justify-between">
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm text-[var(--color-ink-subtle)]">
-          {prospects.length} {prospects.length === 1 ? "prospect" : "prospects"}
+          {prospects.length} {prospects.length === 1 ? "donor" : "donors"}
         </p>
-        <button onClick={() => setShowForm(!showForm)} className="btn-primary">
-          {showForm ? "Cancel" : "+ Add prospect"}
-        </button>
+        <div className="flex gap-2">
+          <a href="/fundraising/import" className="btn-secondary text-sm">Import from file</a>
+          <button onClick={() => setShowForm(!showForm)} className="btn-primary">
+            {showForm ? "Cancel" : "Add donor"}
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -123,7 +126,7 @@ export default function FundraisingClient({
 
       {prospects.length === 0 ? (
         <div className="card p-5 text-sm text-[var(--color-ink-subtle)]">
-          No prospects yet. Add donors, volunteers, and anyone who might cut a check.
+          No donors yet. Add prospective campaign donors to reach out to.
         </div>
       ) : (
         <ul className="space-y-2">

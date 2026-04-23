@@ -4,6 +4,8 @@ import { getSupabaseServer } from "@/lib/supabase/server";
 import AppShell, { type CandidateProfile } from "@/components/AppShell";
 import DoneButton from "@/components/DoneButton";
 import DailyBriefCard from "@/components/DailyBriefCard";
+import DemoBanner from "@/components/DemoBanner";
+import { sentimentChip, priorityChip } from "@/lib/ui/chips";
 
 export const dynamic = "force-dynamic";
 
@@ -88,8 +90,11 @@ export default async function HomePage() {
   const stats = (statsData as Stats | null) ?? null;
   const actions = (actionsRaw as PriorityAction[] | null) ?? [];
 
+  const isDemo = user?.is_anonymous === true;
+
   return (
     <AppShell profile={profile ?? null}>
+      {isDemo && <DemoBanner />}
       {/* Stats row */}
       {stats && (
         <section className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
@@ -300,24 +305,3 @@ function Stat({
   );
 }
 
-function priorityChip(p: number): string {
-  if (p >= 50) return "chip-danger";
-  if (p >= 25) return "chip-warning";
-  if (p >= 10) return "chip-primary";
-  return "chip-neutral";
-}
-
-function sentimentChip(s: string): string {
-  switch (s) {
-    case "supportive":
-    case "leaning_supportive":
-      return "chip-success";
-    case "opposed":
-    case "leaning_opposed":
-      return "chip-danger";
-    case "undecided":
-      return "chip-warning";
-    default:
-      return "chip-neutral";
-  }
-}

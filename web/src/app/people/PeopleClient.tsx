@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import type { TalkedTo } from "./page";
+import { sentimentChip, priorityChip } from "@/lib/ui/chips";
 
 const SENTIMENTS = ["supportive", "leaning_supportive", "undecided", "leaning_opposed", "opposed", "unknown"];
 
@@ -119,23 +120,3 @@ export default function PeopleClient({ initial }: { initial: TalkedTo[] }) {
   );
 }
 
-function sentimentChip(s: string): string {
-  switch (s) {
-    case "supportive":
-    case "leaning_supportive":
-      return "chip-success";
-    case "opposed":
-    case "leaning_opposed":
-      return "chip-danger";
-    case "undecided":
-      return "chip-warning";
-    default:
-      return "chip-neutral";
-  }
-}
-function priorityChip(p: number): string {
-  if (p >= 50) return "chip-danger";
-  if (p >= 25) return "chip-warning";
-  if (p >= 10) return "chip-primary";
-  return "chip-neutral";
-}

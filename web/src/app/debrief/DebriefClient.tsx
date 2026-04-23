@@ -83,17 +83,13 @@ export default function DebriefClient() {
     r.onerror = (ev: Event) => {
       const code = (ev as Event & { error?: string }).error ?? "unknown";
       if (code === "network") {
-        setVoiceNote(
-          "Mic transcription couldn't reach the speech server (common behind firewalls or on flaky Wi-Fi). Type what you want to log below — Claude will still parse and save it.",
-        );
+        setVoiceNote("Mic can't reach the speech server. Type below instead — JED still parses it.");
       } else if (code === "not-allowed" || code === "service-not-allowed") {
-        setVoiceNote(
-          "Mic permission is blocked for this site. Enable it in the browser address bar, or just type below.",
-        );
+        setVoiceNote("Mic permission blocked. Allow it in the address bar, or type below.");
       } else if (code === "no-speech") {
-        setVoiceNote("No speech detected. Press Start again or type below.");
+        setVoiceNote("No speech detected. Try again or type below.");
       } else {
-        setVoiceNote(`Mic error: ${code}. You can type below instead.`);
+        setVoiceNote(`Mic error: ${code}. Type below instead.`);
       }
       setRecording(false);
     };

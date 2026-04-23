@@ -83,16 +83,12 @@ export default function MapClient({
       await import("leaflet/dist/leaflet.css");
       if (cancelled || !mapDivRef.current || mapRef.current) return;
 
-      // Initial center: median of voters if any, else Durham NC default
-      let center: [number, number] = [35.994, -78.898];
+      // Default center (Durham NC). If we have voters, we fit to them after.
+      const map = L.map(mapDivRef.current).setView([35.994, -78.898], 13);
       if (initialVoters.length > 0) {
-        const lats = initialVoters.map((v) => v.lat).sort((a, b) => a - b);
-        const lngs = initialVoters.map((v) => v.lng).sort((a, b) => a - b);
-        const mid = Math.floor(initialVoters.length / 2);
-        center = [lats[mid], lngs[mid]];
+        const bounds = L.latLngBounds(initialVoters.map((v) => L.latLng(v.lat, v.lng)));
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
       }
-
-      const map = L.map(mapDivRef.current).setView(center, 13);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors",
       }).addTo(map);
@@ -116,7 +112,7 @@ export default function MapClient({
     };
   }, [initialVoters]);
 
-  // Render markers
+  // Render markers — teardrop-style divIcon pins so they read at any zoom.
   useEffect(() => {
     if (!leafletReady) return;
     (async () => {
@@ -125,13 +121,29 @@ export default function MapClient({
       layerRef.current.clearLayers();
       for (const v of visibleVoters) {
         const color = sentimentColor(v.last_sentiment);
-        const m = L.circleMarker([v.lat, v.lng], {
-          radius: 7,
-          color: "#fff",
-          weight: 1.5,
-          fillColor: color,
-          fillOpacity: 0.85,
+        const icon = L.divIcon({
+          className: "jed-pin",
+          html: `<div style="
+            width:22px;height:28px;position:relative;
+            filter:drop-shadow(0 2px 3px rgba(15,23,42,.35));
+          ">
+            <div style="
+              width:22px;height:22px;border-radius:50%;
+              background:${color};border:3px solid #fff;
+            "></div>
+            <div style="
+              position:absolute;top:17px;left:7px;
+              width:0;height:0;
+              border-left:4px solid transparent;
+              border-right:4px solid transparent;
+              border-top:8px solid ${color};
+            "></div>
+          </div>`,
+          iconSize: [22, 28],
+          iconAnchor: [11, 28],
+          popupAnchor: [0, -24],
         });
+        const m = L.marker([v.lat, v.lng], { icon, title: [v.first_name, v.last_name].filter(Boolean).join(" ") });
         const name = [v.first_name, v.last_name].filter(Boolean).join(" ") || "(no name)";
         const popup = `
           <div style="font-family: inherit;">
@@ -145,6 +157,14 @@ export default function MapClient({
       }
     })();
   }, [leafletReady, visibleVoters]);
+
+  async function fitToContacted() {
+    if (!mapRef.current || visibleVoters.length === 0) return;
+    const L = await import("leaflet");
+    const latlngs = visibleVoters.map((v) => L.latLng(v.lat, v.lng));
+    const bounds = L.latLngBounds(latlngs);
+    mapRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+  }
 
   // Radius circle + results
   useEffect(() => {
@@ -296,6 +316,15 @@ export default function MapClient({
             <option value="opposed">Opposed</option>
           </select>
         </label>
+        <button
+          onClick={fitToContacted}
+          disabled={visibleVoters.length === 0}
+          className="btn-secondary text-xs"
+          title="Zoom to the voters you've contacted"
+        >
+          Zoom to my voters
+        </button>
+
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={radiusMode} onChange={(e) => {
             setRadiusMode(e.target.checked);

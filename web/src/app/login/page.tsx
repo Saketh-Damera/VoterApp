@@ -16,6 +16,28 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
 
+  async function startDemo() {
+    if (loading) return;
+    setLoading(true);
+    setResult(null);
+    try {
+      const { data, error } = await supabase.auth.signInAnonymously();
+      if (error || !data.session) {
+        setResult({
+          error:
+            "Demo mode needs Anonymous auth enabled in Supabase. " +
+            "Open Authentication → Providers → scroll to Anonymous → toggle on. Then try again.",
+        });
+        return;
+      }
+      await supabase.rpc("seed_demo");
+      router.push("/");
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (loading) return;
@@ -113,6 +135,24 @@ export default function LoginPage() {
         >
           {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
         </button>
+
+        <hr className="my-5 border-[var(--color-border)]" />
+        <div className="text-center">
+          <p className="mb-2 text-xs text-[var(--color-ink-subtle)]">
+            Want to try JED without signing up?
+          </p>
+          <button
+            onClick={startDemo}
+            disabled={loading}
+            className="btn-secondary w-full"
+            type="button"
+          >
+            {loading ? "Starting demo..." : "Try the demo (NC Durham sample)"}
+          </button>
+          <p className="mt-2 text-[0.6875rem] text-[var(--color-ink-subtle)]">
+            Spins up a disposable account pre-loaded with sample voters and interactions.
+          </p>
+        </div>
       </div>
     </main>
   );
