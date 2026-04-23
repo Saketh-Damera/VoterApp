@@ -1,20 +1,12 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, Instrument_Serif, Fraunces, Rubik_Mono_One, Anton } from "next/font/google";
+import { Plus_Jakarta_Sans, Fraunces, Rubik_Mono_One, Anton } from "next/font/google";
 import "./globals.css";
 
-// Primary UI face
+// Primary UI face — used for body AND display / page titles
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-sans",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
-});
-
-// Editorial display face for hero page titles
-const instrumentSerif = Instrument_Serif({
-  variable: "--font-serif",
-  subsets: ["latin"],
-  weight: ["400"],
-  style: ["normal", "italic"],
 });
 
 // Per-letter fonts for the JED logo (only used in JedLogo)
@@ -49,7 +41,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${jakarta.variable} ${instrumentSerif.variable} ${fraunces.variable} ${rubikMono.variable} ${anton.variable} h-full antialiased`}
+      className={`${jakarta.variable} ${fraunces.variable} ${rubikMono.variable} ${anton.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">{children}</body>
     </html>

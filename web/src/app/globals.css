@@ -47,30 +47,44 @@ html, body {
   letter-spacing: -0.005em;
 }
 
-/* Editorial display face for hero titles */
-.serif {
-  font-family: var(--font-serif), "Instrument Serif", Georgia, serif;
-  font-feature-settings: "ss01";
-}
-
 /* ---- Reusable component utilities ---- */
 
 @layer components {
+  /* Page title — tight, heavy sans for clear hierarchy */
   .page-title {
-    font-family: var(--font-serif), "Instrument Serif", Georgia, serif;
-    font-style: italic;
-    font-size: 2.25rem;
+    font-family: var(--font-sans), "Plus Jakarta Sans", sans-serif;
+    font-weight: 800;
+    font-size: 2rem;
     line-height: 1.1;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
     color: var(--color-ink);
-    font-weight: 400;
+  }
+  @media (min-width: 768px) {
+    .page-title {
+      font-size: 2.375rem;
+    }
   }
 
   .page-subtitle {
     color: var(--color-ink-subtle);
     font-size: 0.9375rem;
-    max-width: 48ch;
+    max-width: 52ch;
+    line-height: 1.5;
   }
+
+  /* Large numeric for stats, reads at a glance */
+  .display-num {
+    font-family: var(--font-sans), "Plus Jakarta Sans", sans-serif;
+    font-weight: 700;
+    font-size: 1.625rem;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Legacy alias — still used in a couple of places */
+  .serif { font-family: var(--font-sans), sans-serif; font-style: normal; }
 
   .card {
     background: var(--color-surface);

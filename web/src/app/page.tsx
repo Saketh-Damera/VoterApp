@@ -203,7 +203,7 @@ export default async function HomePage() {
               <div>
                 <div className="flex items-baseline justify-between">
                   <span className="text-sm text-[var(--color-ink-muted)]">Committed</span>
-                  <span className="serif text-2xl italic text-[var(--color-ink)]">
+                  <span className="display-num">
                     ${Math.round(stats.fundraising_committed).toLocaleString()}
                   </span>
                 </div>
@@ -294,7 +294,7 @@ function Stat({
   return (
     <div>
       <div className="section-label">{label}</div>
-      <div className="serif mt-1 text-2xl italic text-[var(--color-ink)]">{value}</div>
+      <div className="display-num mt-1 text-[var(--color-ink)]">{value}</div>
       {sub && <div className="mt-0.5 text-xs text-[var(--color-ink-subtle)]">{sub}</div>}
     </div>
   );
