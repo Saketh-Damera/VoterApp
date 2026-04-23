@@ -225,6 +225,13 @@ html, body {
     color: var(--color-ink);
   }
 
+  /* Leaflet divIcon pins — kill default white background so our teardrop HTML shows clean */
+  .leaflet-div-icon.jed-pin,
+  .jed-pin {
+    background: transparent;
+    border: 0;
+  }
+
   /* Strong horizontal rule between major page zones */
   .divider-strong {
     height: 1px;

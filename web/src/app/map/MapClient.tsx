@@ -1,5 +1,8 @@
 "use client";
 
+// Leaflet CSS needs a static import so it's reliably bundled — a dynamic
+// `await import("leaflet/dist/leaflet.css")` falls through on Turbopack.
+import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MapVoter } from "./page";
 
@@ -80,7 +83,6 @@ export default function MapClient({
     let cancelled = false;
     (async () => {
       const L = await import("leaflet");
-      await import("leaflet/dist/leaflet.css");
       if (cancelled || !mapDivRef.current || mapRef.current) return;
 
       // Default center (Durham NC). If we have voters, we fit to them after.

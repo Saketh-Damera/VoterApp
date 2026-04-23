@@ -63,15 +63,41 @@ export default function DebriefClient() {
     if (!SR) setSttSupported(false);
   }, []);
 
-  function start() {
+  async function start() {
     setErr(null);
     setVoiceNote(null);
     setResult(null);
     const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!SR) {
       setSttSupported(false);
+      setVoiceNote("This browser doesn't support voice transcription. Type below instead.");
       return;
     }
+
+    // Pre-flight: explicitly request mic access so permission failures surface
+    // as a clear message instead of a silent Web Speech error.
+    if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // We only needed the permission prompt — release the mic immediately.
+        stream.getTracks().forEach((t) => t.stop());
+      } catch (e) {
+        const name = (e as Error & { name?: string }).name;
+        if (name === "NotAllowedError") {
+          setVoiceNote("Mic permission denied. Allow microphone access in the address bar, then try again.");
+        } else if (name === "NotFoundError") {
+          setVoiceNote("No microphone detected. Plug in a mic or type below.");
+        } else {
+          setVoiceNote(`Mic unavailable: ${(e as Error).message}. Type below instead.`);
+        }
+        return;
+      }
+    }
+
+    // Tear down any previous recognizer
+    try { recRef.current?.stop(); } catch {}
+    recRef.current = null;
+
     const r = new SR();
     r.continuous = true;
     r.interimResults = true;
@@ -90,11 +116,13 @@ export default function DebriefClient() {
     r.onerror = (ev: Event) => {
       const code = (ev as Event & { error?: string }).error ?? "unknown";
       if (code === "network") {
-        setVoiceNote("Mic can't reach the speech server. Type below instead — JED still parses it.");
+        setVoiceNote("Mic can't reach the speech server (common on corporate or spotty Wi-Fi). Type below — JED still parses it.");
       } else if (code === "not-allowed" || code === "service-not-allowed") {
         setVoiceNote("Mic permission blocked. Allow it in the address bar, or type below.");
       } else if (code === "no-speech") {
         setVoiceNote("No speech detected. Try again or type below.");
+      } else if (code === "aborted") {
+        // Usually harmless — user stopped recording
       } else {
         setVoiceNote(`Mic error: ${code}. Type below instead.`);
       }
@@ -103,9 +131,15 @@ export default function DebriefClient() {
     r.onend = () => {
       setRecording(false);
     };
-    r.start();
-    recRef.current = r;
-    setRecording(true);
+
+    try {
+      r.start();
+      recRef.current = r;
+      setRecording(true);
+    } catch (e) {
+      setVoiceNote(`Couldn't start voice: ${(e as Error).message}. Type below.`);
+      setRecording(false);
+    }
   }
 
   function stop() {
@@ -209,9 +243,10 @@ export default function DebriefClient() {
         </div>
 
         {voiceNote && (
-          <p className="mt-3 rounded-md bg-[var(--color-warning-soft)] px-3 py-2 text-xs text-[var(--color-warning)]">
+          <div className="mt-3 rounded-md border border-[var(--color-warning)] bg-[var(--color-warning-soft)] p-3 text-sm text-[var(--color-warning)]">
+            <strong className="block mb-1">Voice couldn&apos;t start</strong>
             {voiceNote}
-          </p>
+          </div>
         )}
       </div>
 
