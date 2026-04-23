@@ -59,7 +59,7 @@ export async function generateBrief(input: BriefInput): Promise<VoterBrief> {
     `\nInteractions (most recent first): ${JSON.stringify(input.interactions.slice(0, 5))}`;
 
   const response = await client.messages.parse({
-    model: "claude-opus-4-7",
+    model: process.env.JED_MODEL ?? "claude-haiku-4-5",
     max_tokens: 1024,
     system: [{ type: "text", text: BRIEF_SYSTEM, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content }],
@@ -102,7 +102,7 @@ export async function draftFollowUp(input: BriefInput): Promise<DraftMessage> {
     `\nRecent interactions (most recent first): ${JSON.stringify(input.interactions.slice(0, 3))}`;
 
   const response = await client.messages.parse({
-    model: "claude-opus-4-7",
+    model: process.env.JED_MODEL ?? "claude-haiku-4-5",
     max_tokens: 1024,
     system: [{ type: "text", text: DRAFT_SYSTEM, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content }],
@@ -153,7 +153,7 @@ export async function draftAsk(input: AskInput): Promise<AskDraft> {
     `\n\nProspect: ${JSON.stringify(input.prospect)}`;
 
   const response = await client.messages.parse({
-    model: "claude-opus-4-7",
+    model: process.env.JED_MODEL ?? "claude-haiku-4-5",
     max_tokens: 1024,
     system: [{ type: "text", text: ASK_SYSTEM, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content }],

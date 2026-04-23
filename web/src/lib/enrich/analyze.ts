@@ -56,7 +56,7 @@ Rules:
 export async function analyzeNotes(notes: string): Promise<NoteAnalysis> {
   const client = new Anthropic();
   const response = await client.messages.parse({
-    model: "claude-opus-4-7",
+    model: process.env.JED_MODEL_CHEAP ?? process.env.JED_MODEL ?? "claude-haiku-4-5",
     max_tokens: 1024,
     system: [
       {

@@ -53,7 +53,7 @@ export async function mapColumns(
     `Sample rows (JSON):\n${JSON.stringify(sampleRows.slice(0, 5), null, 2)}`;
 
   const response = await client.messages.parse({
-    model: "claude-opus-4-7",
+    model: process.env.JED_MODEL_CHEAP ?? process.env.JED_MODEL ?? "claude-haiku-4-5",
     max_tokens: 1024,
     system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: userContent }],
