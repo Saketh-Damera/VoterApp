@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
+import JedLogo from "@/components/JedLogo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -34,10 +35,13 @@ export default function LoginPage() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6 py-12">
       <div className="card p-6">
-        <h1 className="mb-1 text-xl font-semibold tracking-tight text-[var(--color-primary)]">
-          Voter Notebook
-        </h1>
-        <p className="mb-6 text-sm text-[var(--color-ink-subtle)]">
+        <div className="mb-3 flex justify-center">
+          <JedLogo size="lg" href="" />
+        </div>
+        <p className="mb-6 text-center text-xs uppercase tracking-[0.15em] text-[var(--color-ink-subtle)]">
+          Voter Intelligence Notebook
+        </p>
+        <p className="mb-5 text-sm text-[var(--color-ink-subtle)]">
           {mode === "signin" ? "Sign in to your campaign." : "Create your campaign account."}
         </p>
         <form onSubmit={submit} className="flex flex-col gap-3">

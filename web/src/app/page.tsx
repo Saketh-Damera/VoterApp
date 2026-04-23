@@ -105,7 +105,12 @@ export default async function HomePage() {
       </section>
 
       <section>
-        <h2 className="section-label mb-3">Recent interactions</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="section-label">Recent interactions</h2>
+          <a href="/api/export/interactions" className="btn-ghost text-xs" title="Download XLSX">
+            ⬇ Export
+          </a>
+        </div>
         {!interactions?.length ? (
           <div className="card p-5 text-sm text-[var(--color-ink-subtle)]">
             No interactions yet.
