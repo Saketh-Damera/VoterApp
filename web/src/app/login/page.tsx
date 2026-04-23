@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import JedLogo from "@/components/JedLogo";
 
+type Result = "ok" | "confirm_email" | { error: string };
+
 export default function LoginPage() {
   const router = useRouter();
   const supabase = getSupabaseBrowser();
@@ -12,24 +14,44 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<Result | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
-    setError(null);
-    const fn =
-      mode === "signin"
-        ? supabase.auth.signInWithPassword({ email, password })
-        : supabase.auth.signUp({ email, password });
-    const { error } = await fn;
-    setLoading(false);
-    if (error) {
-      setError(error.message);
-      return;
+    setResult(null);
+    try {
+      if (mode === "signin") {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          setResult({ error: friendlyAuthError(error.message, mode) });
+          return;
+        }
+        if (data.session) {
+          router.push("/");
+          router.refresh();
+        } else {
+          setResult({ error: "Signed in but no session returned. Try again." });
+        }
+      } else {
+        const { data, error } = await supabase.auth.signUp({ email, password });
+        if (error) {
+          setResult({ error: friendlyAuthError(error.message, mode) });
+          return;
+        }
+        // With email confirmation ON, signUp returns a user but no session.
+        // With email confirmation OFF, signUp returns a session immediately.
+        if (data.session) {
+          router.push("/");
+          router.refresh();
+        } else {
+          setResult("confirm_email");
+        }
+      }
+    } finally {
+      setLoading(false);
     }
-    router.push("/");
-    router.refresh();
   }
 
   return (
@@ -44,6 +66,15 @@ export default function LoginPage() {
         <p className="mb-5 text-sm text-[var(--color-ink-subtle)]">
           {mode === "signin" ? "Sign in to your campaign." : "Create your campaign account."}
         </p>
+
+        {result === "confirm_email" && (
+          <div className="mb-4 rounded-md border border-[var(--color-accent-soft)] bg-[var(--color-accent-soft)] p-3 text-sm">
+            <strong className="text-[var(--color-primary)]">Almost there.</strong> Check your inbox at{" "}
+            <span className="font-mono">{email}</span> for a confirmation link, then return here to sign in.
+            Emails from Supabase sometimes land in Spam.
+          </div>
+        )}
+
         <form onSubmit={submit} className="flex flex-col gap-3">
           <input
             type="email"
@@ -52,28 +83,60 @@ export default function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="input"
+            disabled={loading}
+            autoComplete="email"
           />
           <input
             type="password"
             required
             minLength={6}
-            placeholder="password"
+            placeholder="password (min 6)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="input"
+            disabled={loading}
+            autoComplete={mode === "signin" ? "current-password" : "new-password"}
           />
           <button type="submit" disabled={loading} className="btn-primary">
-            {loading ? "..." : mode === "signin" ? "Sign in" : "Sign up"}
+            {loading
+              ? (mode === "signin" ? "Signing in..." : "Creating account...")
+              : (mode === "signin" ? "Sign in" : "Sign up")}
           </button>
-          {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
+          {result && typeof result === "object" && "error" in result && (
+            <p className="text-sm text-[var(--color-danger)]">{result.error}</p>
+          )}
         </form>
         <button
-          onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+          onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setResult(null); }}
           className="mt-5 text-sm text-[var(--color-ink-subtle)] hover:text-[var(--color-primary)]"
+          disabled={loading}
         >
-          {mode === "signin" ? "Need an account? Sign up" : "Have one? Sign in"}
+          {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
         </button>
       </div>
     </main>
   );
+}
+
+function friendlyAuthError(message: string, mode: "signin" | "signup"): string {
+  const m = message.toLowerCase();
+  if (m.includes("invalid login credentials")) {
+    return "Email or password didn't match. If you just signed up, check your inbox for the confirmation link first.";
+  }
+  if (m.includes("email not confirmed")) {
+    return "Please confirm your email before signing in — check your inbox.";
+  }
+  if (m.includes("already registered") || m.includes("user already registered")) {
+    return "That email is already registered. Switch to Sign in and try your password.";
+  }
+  if (m.includes("rate limit") || m.includes("too many")) {
+    return "Too many attempts. Wait a minute and try again.";
+  }
+  if (m.includes("password") && m.includes("short")) {
+    return "Password must be at least 6 characters.";
+  }
+  if (m.includes("network") || m.includes("failed to fetch")) {
+    return "Network error reaching the auth server. Check your connection and try again.";
+  }
+  return `${mode === "signin" ? "Sign in" : "Sign up"} failed: ${message}`;
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import AppShell, { type CandidateProfile } from "@/components/AppShell";
 import DoneButton from "@/components/DoneButton";
@@ -53,14 +54,20 @@ export default async function HomePage() {
   const supabase = await getSupabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
 
+  // First-run: if no candidate profile, send to settings to set up.
+  const { data: profile } = await supabase
+    .from("candidates")
+    .select("candidate_name, office, jurisdiction, election_date")
+    .eq("user_id", user!.id)
+    .maybeSingle<CandidateProfile>();
+  if (!profile) redirect("/settings");
+
   const [
-    { data: profile },
     { data: statsData },
     { data: interactions },
     { data: actionsRaw },
     { data: todos },
   ] = await Promise.all([
-    supabase.from("candidates").select("candidate_name, office, jurisdiction, election_date").eq("user_id", user!.id).maybeSingle<CandidateProfile>(),
     supabase.rpc("dashboard_stats"),
     supabase
       .from("interactions")

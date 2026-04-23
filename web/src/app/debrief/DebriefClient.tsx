@@ -30,12 +30,13 @@ declare global {
 
 export default function DebriefClient() {
   const router = useRouter();
-  const [supported, setSupported] = useState(true);
+  const [sttSupported, setSttSupported] = useState(true);
   const [recording, setRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [interim, setInterim] = useState("");
   const [processing, setProcessing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [voiceNote, setVoiceNote] = useState<string | null>(null);
   const [result, setResult] = useState<null | {
     voter_ncid: string | null;
     extract: {
@@ -49,17 +50,21 @@ export default function DebriefClient() {
   const recRef = useRef<SRInstance | null>(null);
 
   useEffect(() => {
-    const SR = typeof window !== "undefined" ? (window.SpeechRecognition ?? window.webkitSpeechRecognition) : undefined;
-    if (!SR) setSupported(false);
+    const SR = typeof window !== "undefined"
+      ? (window.SpeechRecognition ?? window.webkitSpeechRecognition)
+      : undefined;
+    if (!SR) setSttSupported(false);
   }, []);
 
   function start() {
     setErr(null);
+    setVoiceNote(null);
     setResult(null);
-    setTranscript("");
-    setInterim("");
     const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-    if (!SR) return;
+    if (!SR) {
+      setSttSupported(false);
+      return;
+    }
     const r = new SR();
     r.continuous = true;
     r.interimResults = true;
@@ -72,11 +77,24 @@ export default function DebriefClient() {
         if (res.isFinal) finalText += res[0].transcript;
         else interimText += res[0].transcript;
       }
-      if (finalText) setTranscript((t) => t + finalText);
+      if (finalText) setTranscript((t) => (t ? t + " " : "") + finalText.trim());
       setInterim(interimText);
     };
     r.onerror = (ev: Event) => {
-      setErr("Mic error: " + (ev as Event & { error?: string }).error);
+      const code = (ev as Event & { error?: string }).error ?? "unknown";
+      if (code === "network") {
+        setVoiceNote(
+          "Mic transcription couldn't reach the speech server (common behind firewalls or on flaky Wi-Fi). Type what you want to log below — Claude will still parse and save it.",
+        );
+      } else if (code === "not-allowed" || code === "service-not-allowed") {
+        setVoiceNote(
+          "Mic permission is blocked for this site. Enable it in the browser address bar, or just type below.",
+        );
+      } else if (code === "no-speech") {
+        setVoiceNote("No speech detected. Press Start again or type below.");
+      } else {
+        setVoiceNote(`Mic error: ${code}. You can type below instead.`);
+      }
       setRecording(false);
     };
     r.onend = () => {
@@ -95,86 +113,104 @@ export default function DebriefClient() {
   async function process() {
     const full = (transcript + " " + interim).trim();
     if (full.length < 10) {
-      setErr("Transcript too short — talk a bit longer.");
+      setErr("Say or type at least a sentence — include the person's name + what you heard.");
       return;
     }
     setProcessing(true);
     setErr(null);
-    const res = await fetch("/api/debrief", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ transcript: full }),
-    });
-    const json = await res.json();
-    setProcessing(false);
-    if (!res.ok) {
-      setErr(json.error ?? "debrief failed");
-      return;
+    try {
+      const res = await fetch("/api/debrief", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ transcript: full }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setErr(json.error ?? "debrief failed");
+      } else {
+        setResult(json);
+        router.refresh();
+      }
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setProcessing(false);
     }
-    setResult(json);
-    router.refresh();
-  }
-
-  if (!supported) {
-    return (
-      <div className="card p-5 text-sm">
-        <p className="mb-2 font-medium text-[var(--color-danger)]">
-          This browser doesn't support the Web Speech API.
-        </p>
-        <p className="text-[var(--color-ink-muted)]">
-          Use Chrome, Edge, or Safari on macOS/iOS. Or type your notes directly at{" "}
-          <a href="/people/new" className="underline">Add Person</a>.
-        </p>
-      </div>
-    );
   }
 
   return (
     <div className="space-y-4">
-      <div className="card p-5">
-        <div className="flex items-center justify-center">
-          {!recording ? (
-            <button onClick={start} className="btn-primary px-6 py-3 text-base">
-              Start recording
-            </button>
+      <div className="card p-4">
+        <label className="block">
+          <span className="text-[0.6875rem] uppercase tracking-wide text-[var(--color-ink-subtle)]">
+            What happened? Say or type it.
+          </span>
+          <textarea
+            value={transcript + (interim ? " " + interim : "")}
+            onChange={(e) => {
+              setTranscript(e.target.value);
+              setInterim("");
+            }}
+            rows={6}
+            placeholder={
+              recording
+                ? "Listening... speak naturally."
+                : "e.g. Talked to Carla Hernandez at Githens PTA. Cares about Oak traffic, son at Jefferson, leans yes, asked for a yard sign. Worries her husband won't vote."
+            }
+            className="input mt-1"
+            disabled={processing}
+          />
+        </label>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {sttSupported ? (
+            !recording ? (
+              <button onClick={start} disabled={processing} className="btn-secondary">
+                Start recording
+              </button>
+            ) : (
+              <button
+                onClick={stop}
+                className="btn-primary bg-[var(--color-danger)] hover:bg-[var(--color-danger)]"
+              >
+                Stop recording
+              </button>
+            )
           ) : (
-            <button onClick={stop} className="btn-primary bg-[var(--color-danger)] hover:bg-[var(--color-danger)] px-6 py-3 text-base">
-              Stop
-            </button>
+            <span className="text-xs text-[var(--color-ink-subtle)]">
+              Mic transcription not supported in this browser — type above.
+            </span>
           )}
+
+          <button
+            onClick={process}
+            disabled={processing || (transcript + interim).trim().length < 10}
+            className="btn-primary"
+          >
+            {processing ? "Claude parsing..." : "Save to JED"}
+          </button>
+
+          <button
+            onClick={() => {
+              setTranscript("");
+              setInterim("");
+              setResult(null);
+              setErr(null);
+              setVoiceNote(null);
+            }}
+            className="btn-ghost text-sm"
+            disabled={processing}
+          >
+            Clear
+          </button>
         </div>
-        {recording && (
-          <p className="mt-3 text-center text-xs text-[var(--color-ink-subtle)]">
-            Recording... speak naturally. "Talked to Carla, cares about Oak traffic, son at Jefferson, leans yes, wants a sign."
+
+        {voiceNote && (
+          <p className="mt-3 rounded-md bg-[var(--color-warning-soft)] px-3 py-2 text-xs text-[var(--color-warning)]">
+            {voiceNote}
           </p>
         )}
       </div>
-
-      {(transcript || interim) && (
-        <div className="card p-4">
-          <div className="section-label mb-2">Transcript</div>
-          <p className="whitespace-pre-wrap text-sm text-[var(--color-ink)]">
-            {transcript}
-            <span className="text-[var(--color-ink-subtle)]">{interim}</span>
-          </p>
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={process}
-              disabled={processing || (transcript + interim).trim().length < 10}
-              className="btn-primary"
-            >
-              {processing ? "Claude parsing..." : "Parse & save"}
-            </button>
-            <button
-              onClick={() => { setTranscript(""); setInterim(""); setResult(null); }}
-              className="btn-secondary"
-              disabled={processing}
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-      )}
 
       {err && (
         <div className="card bg-[var(--color-danger-soft)] p-3 text-sm text-[var(--color-danger)]">
@@ -187,7 +223,9 @@ export default function DebriefClient() {
           <div className="mb-2 flex items-baseline justify-between">
             <div className="section-label">Saved</div>
             {result.voter_ncid ? (
-              <a href={`/people/${result.voter_ncid}`} className="btn-ghost text-xs">Open profile</a>
+              <a href={`/people/${result.voter_ncid}`} className="btn-ghost text-xs">
+                Open profile
+              </a>
             ) : (
               <span className="chip chip-warning">unmatched</span>
             )}

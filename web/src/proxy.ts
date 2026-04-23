@@ -29,7 +29,6 @@ export async function proxy(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/auth");
-  const isSettingsRoute = pathname.startsWith("/settings");
 
   if (!user && !isAuthRoute) {
     const url = request.nextUrl.clone();
@@ -43,19 +42,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // First-run onboarding: no candidate profile → push to settings.
-  if (user && !isAuthRoute && !isSettingsRoute) {
-    const { data: profile } = await supabase
-      .from("candidates")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (!profile) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/settings";
-      return NextResponse.redirect(url);
-    }
-  }
+  // First-run profile check has been moved to the home page so we don't
+  // pay a DB round-trip on every navigation.
 
   return response;
 }

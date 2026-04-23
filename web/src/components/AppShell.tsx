@@ -14,9 +14,10 @@ type NavItem = { href: string; label: string };
 
 const NAV: NavItem[] = [
   { href: "/",            label: "Dashboard" },
-  { href: "/debrief",     label: "Voice debrief" },
+  { href: "/debrief",     label: "Talk to JED" },
   { href: "/people",      label: "Voters contacted" },
   { href: "/map",         label: "Map" },
+  { href: "/network",     label: "Network" },
   { href: "/todos",       label: "To-dos" },
   { href: "/fundraising", label: "Fundraising" },
   { href: "/events",      label: "Events" },

@@ -17,10 +17,11 @@ export default async function DebriefPage() {
   return (
     <AppShell profile={profile ?? null}>
       <div className="mx-auto max-w-xl">
-        <h2 className="section-label mb-3">Voice debrief</h2>
+        <h2 className="section-label mb-3">Talk to JED</h2>
         <p className="mb-5 text-sm text-[var(--color-ink-subtle)]">
-          Hit the mic, describe the conversation naturally for 30-60 seconds, and Claude fills in the rest —
-          name, support level, issues, and a follow-up if one is warranted.
+          Tell JED what happened — either speak into your mic or type it out. Claude fills in the rest:
+          finds the voter in your list, extracts support level, issues, tags, and schedules a follow-up
+          if one is warranted.
         </p>
         <DebriefClient />
       </div>
