@@ -52,7 +52,7 @@ export default function NewListPage() {
   return (
     <main className="mx-auto max-w-2xl px-5 pb-16 pt-6">
       <header className="mb-5 flex items-center justify-between border-b border-[var(--color-border)] pb-4">
-        <Link href="/lists" className="btn-ghost">← Lists</Link>
+        <Link href="/lists" className="btn-ghost">Back to lists</Link>
         <h1 className="text-lg font-semibold text-[var(--color-primary)]">Upload voter list</h1>
         <span className="w-12" />
       </header>
@@ -104,7 +104,7 @@ export default function NewListPage() {
           disabled={uploading || !file}
           className="btn-primary"
         >
-          {uploading ? "Parsing & mapping columns…" : "Upload"}
+          {uploading ? "Parsing & mapping columns..." : "Upload"}
         </button>
         {err && <p className="text-sm text-[var(--color-danger)]">{err}</p>}
       </form>

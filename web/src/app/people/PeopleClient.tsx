@@ -37,7 +37,7 @@ export default function PeopleClient({ initial }: { initial: TalkedTo[] }) {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="name, address, issue, tag…"
+            placeholder="name, address, issue, tag..."
             className="input"
           />
         </label>

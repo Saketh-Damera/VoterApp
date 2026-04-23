@@ -65,7 +65,7 @@ export default function NewEventForm() {
         className="input"
       />
       <button type="submit" disabled={busy || !title.trim()} className="btn-primary">
-        {busy ? "Creating…" : "Create event"}
+        {busy ? "Creating..." : "Create event"}
       </button>
       {err && <p className="text-sm text-[var(--color-danger)]">{err}</p>}
     </form>

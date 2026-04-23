@@ -135,17 +135,17 @@ export default function DebriefClient() {
         <div className="flex items-center justify-center">
           {!recording ? (
             <button onClick={start} className="btn-primary px-6 py-3 text-base">
-              🎙 Start recording
+              Start recording
             </button>
           ) : (
             <button onClick={stop} className="btn-primary bg-[var(--color-danger)] hover:bg-[var(--color-danger)] px-6 py-3 text-base">
-              ⏹ Stop
+              Stop
             </button>
           )}
         </div>
         {recording && (
           <p className="mt-3 text-center text-xs text-[var(--color-ink-subtle)]">
-            Recording… speak naturally. "Talked to Carla, cares about Oak traffic, son at Jefferson, leans yes, wants a sign."
+            Recording... speak naturally. "Talked to Carla, cares about Oak traffic, son at Jefferson, leans yes, wants a sign."
           </p>
         )}
       </div>
@@ -163,7 +163,7 @@ export default function DebriefClient() {
               disabled={processing || (transcript + interim).trim().length < 10}
               className="btn-primary"
             >
-              {processing ? "Claude parsing…" : "Parse & save"}
+              {processing ? "Claude parsing..." : "Parse & save"}
             </button>
             <button
               onClick={() => { setTranscript(""); setInterim(""); setResult(null); }}
@@ -187,7 +187,7 @@ export default function DebriefClient() {
           <div className="mb-2 flex items-baseline justify-between">
             <div className="section-label">Saved</div>
             {result.voter_ncid ? (
-              <a href={`/people/${result.voter_ncid}`} className="btn-ghost text-xs">open profile →</a>
+              <a href={`/people/${result.voter_ncid}`} className="btn-ghost text-xs">Open profile</a>
             ) : (
               <span className="chip chip-warning">unmatched</span>
             )}

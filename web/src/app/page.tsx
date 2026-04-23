@@ -213,7 +213,7 @@ export default async function HomePage() {
           <div className="mb-3 flex items-center justify-between">
             <h2 className="section-label">Recent interactions</h2>
             <a href="/api/export/interactions" className="btn-ghost text-xs" title="Download XLSX">
-              ⬇ Export
+              Export
             </a>
           </div>
           {!interactions?.length ? (

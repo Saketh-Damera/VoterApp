@@ -60,7 +60,7 @@ export default function QuickSearch() {
         value={q}
         onChange={(e) => setQ(e.target.value)}
         onFocus={() => matches.length > 0 && setOpen(true)}
-        placeholder="Search Durham voters by name…"
+        placeholder="Search Durham voters by name..."
         className="input"
       />
       {open && matches.length > 0 && (

@@ -137,7 +137,7 @@ function Row({
         )}
       </div>
       <button onClick={() => onDelete(t)} className="btn-ghost text-xs">
-        ✕
+        Delete
       </button>
     </li>
   );

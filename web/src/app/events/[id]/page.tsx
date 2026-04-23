@@ -58,7 +58,7 @@ export default async function EventDetailPage({
   return (
     <AppShell profile={profile ?? null}>
       <div className="mb-4">
-        <Link href="/events" className="btn-ghost text-xs">← Events</Link>
+        <Link href="/events" className="btn-ghost text-xs">Back to events</Link>
       </div>
       <EventDetailClient event={event} initialAttendees={attendees} />
     </AppShell>

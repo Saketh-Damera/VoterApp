@@ -10,19 +10,18 @@ export type CandidateProfile = {
   election_date: string | null;
 };
 
-type NavItem = { href: string; label: string; icon: string };
+type NavItem = { href: string; label: string };
 
 const NAV: NavItem[] = [
-  { href: "/",            label: "Dashboard",   icon: "🏠" },
-  { href: "/debrief",     label: "Voice debrief", icon: "🎙" },
-  { href: "/people",      label: "People",      icon: "👥" },
-  { href: "/map",         label: "Map",         icon: "🗺" },
-  { href: "/clusters",    label: "Clusters",    icon: "📍" },
-  { href: "/todos",       label: "To-dos",      icon: "✓" },
-  { href: "/fundraising", label: "Fundraising", icon: "$" },
-  { href: "/events",      label: "Events",      icon: "📅" },
-  { href: "/lists",       label: "Voter lists", icon: "📋" },
-  { href: "/settings",    label: "Settings",    icon: "⚙" },
+  { href: "/",            label: "Dashboard" },
+  { href: "/debrief",     label: "Voice debrief" },
+  { href: "/people",      label: "Voters contacted" },
+  { href: "/map",         label: "Map" },
+  { href: "/todos",       label: "To-dos" },
+  { href: "/fundraising", label: "Fundraising" },
+  { href: "/events",      label: "Events" },
+  { href: "/lists",       label: "Voter lists" },
+  { href: "/settings",    label: "Settings" },
 ];
 
 export default function AppShell({
@@ -43,17 +42,17 @@ export default function AppShell({
           <JedLogo size="md" />
         </div>
         <div className="mb-4 border-b border-[var(--color-border)] pb-3 text-center">
-          <div className="text-sm font-medium text-[var(--color-ink)] truncate">
+          <div className="truncate text-sm font-medium text-[var(--color-ink)]">
             {profile?.candidate_name ?? "—"}
           </div>
           {profile?.office && (
-            <div className="text-xs text-[var(--color-ink-subtle)] truncate">
-              {profile.office}
-            </div>
+            <div className="truncate text-xs text-[var(--color-ink-subtle)]">{profile.office}</div>
           )}
           {dayLabel && (
             <span
-              className={`mt-2 inline-block chip ${daysUntil !== null && daysUntil <= 7 ? "chip-warning" : "chip-primary"}`}
+              className={`mt-2 inline-block chip ${
+                daysUntil !== null && daysUntil <= 7 ? "chip-warning" : "chip-primary"
+              }`}
             >
               {dayLabel}
             </span>
@@ -65,30 +64,20 @@ export default function AppShell({
             <Link
               key={item.href}
               href={item.href}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-[var(--color-ink-muted)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
+              className="block rounded-md px-3 py-2 text-sm text-[var(--color-ink-muted)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
             >
-              <span className="w-5 text-center text-base">{item.icon}</span>
-              <span>{item.label}</span>
+              {item.label}
             </Link>
           ))}
         </nav>
-
-        <div className="mt-4 border-t border-[var(--color-border)] pt-3">
-          <Link href="/people/new" className="btn-primary w-full justify-center">
-            + Add Person
-          </Link>
-          <div className="mt-2">
-            <LogoutButton />
-          </div>
-        </div>
       </aside>
 
-      {/* Mobile top bar */}
+      {/* Mobile top bar with nav */}
       <div className="sticky top-0 z-30 flex w-full flex-col border-b border-[var(--color-border)] bg-[var(--color-surface)] p-3 md:hidden">
         <div className="flex items-center justify-between">
           <JedLogo size="sm" />
           <div className="flex items-center gap-2">
-            <Link href="/people/new" className="btn-primary text-xs">+ Add</Link>
+            <Link href="/people/new" className="btn-primary text-xs">Add Person</Link>
             <LogoutButton />
           </div>
         </div>
@@ -97,20 +86,33 @@ export default function AppShell({
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-md px-2 py-1 text-xs text-[var(--color-ink-muted)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)] whitespace-nowrap"
+              className="whitespace-nowrap rounded-md px-2 py-1 text-xs text-[var(--color-ink-muted)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
             >
-              {item.icon} {item.label}
+              {item.label}
             </Link>
           ))}
         </nav>
       </div>
 
       {/* Main column */}
-      <div className="flex-1">
-        <div className="mx-auto max-w-6xl px-5 py-6">
-          <div className="mb-4">
+      <div className="flex-1 min-w-0">
+        {/* Desktop top-right action bar */}
+        <div className="sticky top-0 z-20 hidden items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-3 md:flex">
+          <div className="flex-1">
             <QuickSearch />
           </div>
+          <Link href="/people/new" className="btn-primary whitespace-nowrap">
+            Add Person
+          </Link>
+          <LogoutButton />
+        </div>
+
+        {/* Mobile: quick search below the nav bar */}
+        <div className="md:hidden px-5 py-3">
+          <QuickSearch />
+        </div>
+
+        <div className="mx-auto max-w-6xl px-5 py-6">
           {children}
         </div>
       </div>

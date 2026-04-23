@@ -21,7 +21,7 @@ export default function PersonAIActions({ ncid }: { ncid: string }) {
   return (
     <div className="flex flex-wrap gap-2">
       <AIActionButton<Brief>
-        label="🧠 Brief me"
+        label="Brief me"
         className="btn-secondary text-xs"
         endpoint={`/api/voters/${ncid}/brief`}
         resultKey="brief"
@@ -57,7 +57,7 @@ export default function PersonAIActions({ ncid }: { ncid: string }) {
         )}
       />
       <AIActionButton<Draft>
-        label="✉ Draft follow-up"
+        label="Draft follow-up"
         className="btn-secondary text-xs"
         endpoint={`/api/voters/${ncid}/draft-message`}
         resultKey="draft"

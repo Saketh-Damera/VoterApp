@@ -116,7 +116,7 @@ export default function FundraisingClient({
           </select>
           <textarea placeholder="Notes" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} className="input sm:col-span-2" rows={2} />
           <button type="submit" disabled={saving || !f.full_name.trim()} className="btn-primary sm:col-span-2">
-            {saving ? "Saving…" : "Save prospect"}
+            {saving ? "Saving..." : "Save prospect"}
           </button>
         </form>
       )}
@@ -172,7 +172,7 @@ export default function FundraisingClient({
                       </div>
                     )}
                   />
-                  <button onClick={() => del(p.id)} className="btn-ghost text-xs" title="Delete">✕</button>
+                  <button onClick={() => del(p.id)} className="btn-ghost text-xs" title="Delete">Delete</button>
                 </div>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">

@@ -63,7 +63,7 @@ export default function LoginPage() {
             className="input"
           />
           <button type="submit" disabled={loading} className="btn-primary">
-            {loading ? "…" : mode === "signin" ? "Sign in" : "Sign up"}
+            {loading ? "..." : mode === "signin" ? "Sign in" : "Sign up"}
           </button>
           {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
         </form>

@@ -128,9 +128,9 @@ export default function SettingsForm({
 
       <div className="flex items-center gap-3 pt-2">
         <button type="submit" disabled={saving || !name.trim()} className="btn-primary">
-          {saving ? "Saving…" : "Save"}
+          {saving ? "Saving..." : "Save"}
         </button>
-        {saved && <span className="text-sm text-[var(--color-success)]">Saved ✓</span>}
+        {saved && <span className="text-sm text-[var(--color-success)]">Saved.</span>}
         {err && <span className="text-sm text-[var(--color-danger)]">{err}</span>}
       </div>
     </form>

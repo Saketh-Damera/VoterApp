@@ -58,11 +58,11 @@ export default function AIActionButton<T>({
           >
             <div className="mb-3 flex items-baseline justify-between">
               <h3 className="text-base font-semibold text-[var(--color-primary)]">{title}</h3>
-              <button onClick={() => setOpen(false)} className="btn-ghost text-xs">✕</button>
+              <button onClick={() => setOpen(false)} className="btn-ghost text-xs">Close</button>
             </div>
             {loading && (
               <p className="text-sm text-[var(--color-ink-subtle)]">
-                Asking Claude… (usually 3-6 seconds)
+                Asking Claude... (usually 3-6 seconds)
               </p>
             )}
             {err && (
@@ -91,7 +91,7 @@ export function CopyBox({ text }: { text: string }) {
         }}
         className="btn-ghost mt-2 text-xs"
       >
-        {copied ? "✓ Copied" : "Copy"}
+        {copied ? "Copied" : "Copy"}
       </button>
     </div>
   );

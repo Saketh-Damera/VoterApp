@@ -22,7 +22,7 @@ export default function DoneButton({ reminderId }: { reminderId: string }) {
       className="btn-ghost text-xs disabled:opacity-50"
       title="Mark follow-up complete"
     >
-      {busy ? "…" : "✓ Done"}
+      {busy ? "..." : "Mark done"}
     </button>
   );
 }

@@ -93,7 +93,7 @@ export default function NewPersonPage() {
   return (
     <main className="mx-auto max-w-2xl px-5 pb-16 pt-6">
       <header className="mb-5 flex items-center justify-between border-b border-[var(--color-border)] pb-4">
-        <Link href="/" className="btn-ghost">← Back</Link>
+        <Link href="/" className="btn-ghost">Home</Link>
         <h1 className="text-lg font-semibold text-[var(--color-primary)]">Add Person</h1>
         <span className="w-12" />
       </header>
@@ -113,7 +113,7 @@ export default function NewPersonPage() {
         {name.trim().length >= 3 && !picked && (
           <div className="card overflow-hidden">
             <div className="border-b border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-ink-subtle)]">
-              {searching ? "Searching…" : matches.length ? `Top ${matches.length} matches` : "No matches"}
+              {searching ? "Searching..." : matches.length ? `Top ${matches.length} matches` : "No matches"}
             </div>
             <ul>
               {matches.map((m) => (
@@ -190,7 +190,7 @@ export default function NewPersonPage() {
             disabled={saving || name.trim().length < 2}
             className="btn-primary"
           >
-            {saving ? "Saving & analyzing…" : "Save"}
+            {saving ? "Saving & analyzing..." : "Save"}
           </button>
           {err && <p className="text-sm text-[var(--color-danger)]">{err}</p>}
         </div>

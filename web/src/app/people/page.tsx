@@ -35,9 +35,9 @@ export default async function PeoplePage() {
   return (
     <AppShell profile={profile ?? null}>
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="section-label">People ({people.length})</h2>
+        <h2 className="section-label">Voters contacted ({people.length})</h2>
         <a href="/api/export/interactions" className="btn-ghost text-xs" title="Download XLSX">
-          ⬇ Export to Excel
+          Export to Excel
         </a>
       </div>
       <PeopleClient initial={people} />

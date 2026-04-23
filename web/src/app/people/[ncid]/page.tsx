@@ -111,7 +111,7 @@ export default async function PersonPage({
   return (
     <main className="mx-auto max-w-2xl px-5 pb-16 pt-6">
       <header className="mb-5 border-b border-[var(--color-border)] pb-4">
-        <Link href="/" className="btn-ghost">← Home</Link>
+        <Link href="/" className="btn-ghost">Home</Link>
         <div className="mt-2 flex items-baseline justify-between gap-3">
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--color-ink)]">
             {fullName}

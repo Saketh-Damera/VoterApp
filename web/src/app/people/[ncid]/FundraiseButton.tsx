@@ -15,7 +15,7 @@ export default function FundraiseButton({ ncid }: { ncid: string }) {
 
   return (
     <button onClick={track} disabled={busy} className="btn-primary text-xs">
-      {busy ? "…" : "+ Track for fundraising"}
+      {busy ? "..." : "+ Track for fundraising"}
     </button>
   );
 }

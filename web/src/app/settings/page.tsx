@@ -29,7 +29,7 @@ export default async function SettingsPage() {
   return (
     <main className="mx-auto max-w-xl p-6">
       <header className="mb-6 flex items-center justify-between">
-        <Link href="/" className="text-sm text-slate-500 hover:text-blue-700">← Home</Link>
+        <Link href="/" className="text-sm text-slate-500 hover:text-blue-700">Home</Link>
         <h1 className="text-lg font-semibold text-slate-900">Campaign settings</h1>
         <span className="w-12" />
       </header>

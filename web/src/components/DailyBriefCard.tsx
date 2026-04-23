@@ -55,7 +55,7 @@ export default function DailyBriefCard() {
       <div className="mb-2 flex items-baseline justify-between">
         <h2 className="section-label">Daily brief</h2>
         <button onClick={generate} disabled={loading} className="btn-ghost text-xs">
-          {loading ? "Thinking…" : brief ? "↻ Refresh" : "Generate"}
+          {loading ? "Thinking..." : brief ? "Refresh" : "Generate"}
         </button>
       </div>
       {err && <p className="text-xs text-[var(--color-danger)]">{err}</p>}

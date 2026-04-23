@@ -133,12 +133,12 @@ export default function EventDetailClient({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Add attendee by name…"
+            placeholder="Add attendee by name..."
             className="input"
           />
           {q.length >= 3 && (
             <div className="mt-2 border-t border-[var(--color-border)] pt-2 text-xs text-[var(--color-ink-subtle)]">
-              {searching ? "Searching…" : matches.length ? `Top ${matches.length} matches` : "No matches"}
+              {searching ? "Searching..." : matches.length ? `Top ${matches.length} matches` : "No matches"}
             </div>
           )}
           {matches.length > 0 && (
@@ -179,7 +179,7 @@ export default function EventDetailClient({
                       {a.res_city ?? ""}{a.party_cd ? " · " + a.party_cd : ""}
                     </span>
                   </Link>
-                  <button onClick={() => remove(a.voter_ncid)} className="btn-ghost text-xs">✕</button>
+                  <button onClick={() => remove(a.voter_ncid)} className="btn-ghost text-xs">Remove</button>
                 </li>
               );
             })}
@@ -198,7 +198,7 @@ export default function EventDetailClient({
             className="btn-primary text-sm"
           >
             {generating
-              ? "Claude drafting…"
+              ? "Claude drafting..."
               : brief
               ? "Regenerate"
               : "Generate brief"}
