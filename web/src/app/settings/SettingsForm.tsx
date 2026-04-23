@@ -10,6 +10,8 @@ type Candidate = {
   office: string | null;
   jurisdiction: string | null;
   election_date: string | null;
+  fundraising_goal: number | null;
+  scratchpad: string | null;
 };
 
 export default function SettingsForm({
@@ -25,6 +27,8 @@ export default function SettingsForm({
   const [office, setOffice] = useState(initial?.office ?? "");
   const [jurisdiction, setJurisdiction] = useState(initial?.jurisdiction ?? "");
   const [electionDate, setElectionDate] = useState(initial?.election_date ?? "");
+  const [goal, setGoal] = useState(initial?.fundraising_goal?.toString() ?? "");
+  const [scratchpad, setScratchpad] = useState(initial?.scratchpad ?? "");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -39,12 +43,15 @@ export default function SettingsForm({
       setSaving(false);
       return;
     }
+    const goalNum = goal.trim() ? parseFloat(goal) : null;
     const { error } = await supabase.from("candidates").upsert({
       user_id: user.id,
       candidate_name: name.trim(),
       office: office.trim() || null,
       jurisdiction: jurisdiction.trim() || null,
       election_date: electionDate || null,
+      fundraising_goal: goalNum,
+      scratchpad: scratchpad,
     });
     setSaving(false);
     if (error) {
@@ -53,7 +60,7 @@ export default function SettingsForm({
     }
     setSaved(true);
     router.refresh();
-    setTimeout(() => router.push("/"), 500);
+    setTimeout(() => setSaved(false), 2000);
   }
 
   return (
@@ -62,7 +69,7 @@ export default function SettingsForm({
         Signed in as <span className="font-mono">{userEmail}</span>
       </p>
 
-      <Field label="Candidate name" hint="How you'll be addressed on the ballot and to voters.">
+      <Field label="Candidate name" hint="How you'll be addressed to voters.">
         <input
           required
           value={name}
@@ -72,7 +79,7 @@ export default function SettingsForm({
         />
       </Field>
 
-      <Field label="Office" hint="The seat you're running for.">
+      <Field label="Office">
         <input
           value={office}
           onChange={(e) => setOffice(e.target.value)}
@@ -81,7 +88,7 @@ export default function SettingsForm({
         />
       </Field>
 
-      <Field label="Jurisdiction" hint="District, ward, or city.">
+      <Field label="Jurisdiction">
         <input
           value={jurisdiction}
           onChange={(e) => setJurisdiction(e.target.value)}
@@ -90,7 +97,7 @@ export default function SettingsForm({
         />
       </Field>
 
-      <Field label="Election date" hint="Used to prioritize GOTV-window contacts.">
+      <Field label="Election date" hint="Drives the GOTV-window priority boost.">
         <input
           type="date"
           value={electionDate}
@@ -99,16 +106,32 @@ export default function SettingsForm({
         />
       </Field>
 
+      <Field label="Fundraising goal ($)" hint="Shows as a progress bar on the dashboard and /fundraising.">
+        <input
+          type="number"
+          value={goal}
+          onChange={(e) => setGoal(e.target.value)}
+          placeholder="e.g. 25000"
+          className="input"
+        />
+      </Field>
+
+      <Field label="Scratchpad" hint="Personal notes — only you see this.">
+        <textarea
+          value={scratchpad}
+          onChange={(e) => setScratchpad(e.target.value)}
+          rows={5}
+          placeholder="Anything you want to keep in one place."
+          className="input"
+        />
+      </Field>
+
       <div className="flex items-center gap-3 pt-2">
-        <button
-          type="submit"
-          disabled={saving || !name.trim()}
-          className="btn-primary"
-        >
+        <button type="submit" disabled={saving || !name.trim()} className="btn-primary">
           {saving ? "Saving…" : "Save"}
         </button>
-        {saved && <span className="text-sm text-emerald-700">Saved ✓</span>}
-        {err && <span className="text-sm text-red-600">{err}</span>}
+        {saved && <span className="text-sm text-[var(--color-success)]">Saved ✓</span>}
+        {err && <span className="text-sm text-[var(--color-danger)]">{err}</span>}
       </div>
     </form>
   );
@@ -125,9 +148,9 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
+      <span className="mb-1 block text-sm font-medium text-[var(--color-ink)]">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
+      {hint && <span className="mt-1 block text-xs text-[var(--color-ink-subtle)]">{hint}</span>}
     </label>
   );
 }

@@ -11,6 +11,8 @@ type Candidate = {
   office: string | null;
   jurisdiction: string | null;
   election_date: string | null;
+  fundraising_goal: number | null;
+  scratchpad: string | null;
 };
 
 export default async function SettingsPage() {
@@ -20,7 +22,7 @@ export default async function SettingsPage() {
 
   const { data: existing } = await supabase
     .from("candidates")
-    .select("user_id, candidate_name, office, jurisdiction, election_date")
+    .select("user_id, candidate_name, office, jurisdiction, election_date, fundraising_goal, scratchpad")
     .eq("user_id", user.id)
     .maybeSingle<Candidate>();
 

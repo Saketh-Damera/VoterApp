@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import AppShell, { type CandidateProfile } from "@/components/AppShell";
 import DoneButton from "@/components/DoneButton";
+import DailyBriefCard from "@/components/DailyBriefCard";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +98,11 @@ export default async function HomePage() {
           <Stat label="Open todos" value={String(stats.pending_todos)} />
         </section>
       )}
+
+      {/* Daily brief banner */}
+      <section className="mb-6">
+        <DailyBriefCard />
+      </section>
 
       {/* 3-col dashboard on large screens */}
       <div className="grid gap-6 lg:grid-cols-3">
