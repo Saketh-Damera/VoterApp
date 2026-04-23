@@ -19,12 +19,12 @@
   --color-ink-muted: #3E3A33;
   --color-ink-subtle: #807864;
 
-  --color-success: #046A4E;
-  --color-success-soft: #D4EBDA;
-  --color-warning: #92400E;
-  --color-warning-soft: #F5E4C6;
-  --color-danger: #9F1F1F;
-  --color-danger-soft: #F5D7D7;
+  --color-success: #0F7A4D;
+  --color-success-soft: #C8EBD4;
+  --color-warning: #9A5B0F;
+  --color-warning-soft: #FAE0B3;
+  --color-danger: #B32020;
+  --color-danger-soft: #F8CACA;
 
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -185,31 +185,56 @@ html, body {
   .chip {
     display: inline-flex;
     align-items: center;
-    padding: 0.1rem 0.55rem;
+    padding: 0.15rem 0.6rem;
     font-size: 0.72rem;
-    font-weight: 500;
+    font-weight: 600;
     border-radius: 9999px;
     line-height: 1.5;
     letter-spacing: -0.003em;
+    border: 1px solid transparent;
   }
-  .chip-neutral  { background: var(--color-surface-muted); color: var(--color-ink-muted); }
-  .chip-primary  { background: var(--color-accent-soft); color: var(--color-primary); }
-  .chip-success  { background: var(--color-success-soft); color: var(--color-success); }
-  .chip-warning  { background: var(--color-warning-soft); color: var(--color-warning); }
-  .chip-danger   { background: var(--color-danger-soft); color: var(--color-danger); }
-  .chip-warm     { background: var(--color-warm-soft); color: var(--color-warm); }
+  .chip-neutral  { background: #E4DFD3; color: #3E3A33; }
+  .chip-primary  { background: #C8DBF7; color: #153269; }
+  .chip-success  { background: #B8E5C7; color: #0A5737; }
+  .chip-warning  { background: #F8D79A; color: #7A4408; }
+  .chip-danger   { background: #F3B4B4; color: #7E1515; }
+  .chip-warm     { background: #F5D0B8; color: #7A3412; }
 
   .section-label {
     font-size: 0.6875rem;
-    font-weight: 600;
-    color: var(--color-ink-subtle);
+    font-weight: 700;
+    color: var(--color-ink-muted);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
   }
 
-  /* Subtle horizontal divider useful for editorial sections */
+  /* Section heading with a solid underline — use for major page sections */
+  .section-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--color-ink);
+    margin-bottom: 1rem;
+  }
+  .section-heading h2, .section-heading h3 {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-ink);
+  }
+
+  /* Strong horizontal rule between major page zones */
+  .divider-strong {
+    height: 1px;
+    background: var(--color-ink);
+    opacity: 0.85;
+    margin: 2rem 0;
+  }
   .divider {
     height: 1px;
-    background: linear-gradient(to right, var(--color-border), transparent);
+    background: var(--color-border-strong);
+    margin: 1.25rem 0;
   }
 }

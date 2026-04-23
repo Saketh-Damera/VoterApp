@@ -5,6 +5,7 @@ import AppShell, { type CandidateProfile } from "@/components/AppShell";
 import DoneButton from "@/components/DoneButton";
 import DailyBriefCard from "@/components/DailyBriefCard";
 import DemoBanner from "@/components/DemoBanner";
+import AskJedCard from "@/components/AskJedCard";
 import { sentimentChip } from "@/lib/ui/chips";
 import { voteTag, raceLabelFor } from "@/lib/ui/voteTag";
 
@@ -100,38 +101,45 @@ export default async function HomePage() {
     <AppShell profile={profile ?? null}>
       {isDemo && <DemoBanner />}
 
-      {/* Hero */}
-      <header className="mb-8 border-b border-[var(--color-border)] pb-6">
-        <h1 className="page-title">Good to see you.</h1>
-        <p className="page-subtitle mt-2">
-          Today&apos;s picture of your campaign — priorities, conversations, and money.
-        </p>
-      </header>
+      {/* Ask JED at top */}
+      <AskJedCard />
 
       {/* Stats row */}
       {stats && (
-        <section className="mb-8 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-6">
-          <Stat label="People tracked" value={stats.people_tracked.toLocaleString()} />
-          <Stat label="This week" value={String(stats.interactions_7d)} sub="interactions" />
-          <Stat label="Supportive" value={String(stats.supportive_count)} />
-          <Stat label="Undecided" value={String(stats.undecided_count)} />
-          <Stat
-            label="Fundraising"
-            value={"$" + Math.round(stats.fundraising_committed).toLocaleString()}
-            sub={stats.fundraising_goal ? `of $${Math.round(stats.fundraising_goal).toLocaleString()}` : "committed"}
-          />
-          <Stat label="Open todos" value={String(stats.pending_todos)} />
+        <section className="mb-10">
+          <div className="section-heading">
+            <h2>At a glance</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
+            <Stat label="People tracked" value={stats.people_tracked.toLocaleString()} />
+            <Stat label="This week" value={String(stats.interactions_7d)} sub="interactions" />
+            <Stat label="Supportive" value={String(stats.supportive_count)} />
+            <Stat label="Undecided" value={String(stats.undecided_count)} />
+            <Stat
+              label="Fundraising"
+              value={"$" + Math.round(stats.fundraising_committed).toLocaleString()}
+              sub={stats.fundraising_goal ? `of $${Math.round(stats.fundraising_goal).toLocaleString()}` : "committed"}
+            />
+            <Stat label="Open todos" value={String(stats.pending_todos)} />
+          </div>
         </section>
       )}
 
-      <section className="mb-8">
+      <section className="mb-10">
+        <div className="section-heading">
+          <h2>Daily brief</h2>
+        </div>
         <DailyBriefCard />
       </section>
 
+      <div className="divider-strong" />
+
       {/* 3-col dashboard */}
-      <div className="grid gap-8 lg:grid-cols-3">
+      <div className="grid gap-10 lg:grid-cols-3">
         <section>
-          <h2 className="section-label mb-4">Follow-ups due</h2>
+          <div className="section-heading">
+            <h2>Follow-ups due</h2>
+          </div>
           {!actions.length ? (
             <p className="text-sm text-[var(--color-ink-subtle)]">
               Nothing scheduled. Log a conversation to seed follow-ups.
@@ -169,8 +177,8 @@ export default async function HomePage() {
         </section>
 
         <section>
-          <div className="mb-4 flex items-baseline justify-between">
-            <h2 className="section-label">Your agenda</h2>
+          <div className="section-heading">
+            <h2>Your agenda</h2>
             <Link href="/todos" className="btn-ghost text-xs">manage</Link>
           </div>
           {!todos?.length ? (
@@ -194,9 +202,9 @@ export default async function HomePage() {
             </ul>
           )}
 
-          <div className="mt-8">
-            <div className="mb-2 flex items-baseline justify-between">
-              <h2 className="section-label">Fundraising</h2>
+          <div className="mt-10">
+            <div className="section-heading">
+              <h2>Fundraising</h2>
               <Link href="/fundraising" className="btn-ghost text-xs">pipeline</Link>
             </div>
             {stats && (
@@ -228,8 +236,8 @@ export default async function HomePage() {
         </section>
 
         <section>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="section-label">Recent conversations</h2>
+          <div className="section-heading">
+            <h2>Recent conversations</h2>
             <a href="/api/export/interactions" className="btn-ghost text-xs" title="Download XLSX">
               Export
             </a>
