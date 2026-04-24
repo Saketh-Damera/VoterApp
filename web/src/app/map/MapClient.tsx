@@ -286,6 +286,29 @@ export default function MapClient({
     window.location.reload();
   }
 
+  // Auto-geocode on first visit: if we have contacted voters without coords
+  // and nothing is pinned yet, run it in the background so the user doesn't
+  // have to hunt for the button.
+  useEffect(() => {
+    if (ungeocoded === 0) return;
+    if (initialVoters.length > 0) return;
+    if (geocoding) return;
+    let cancelled = false;
+    (async () => {
+      if (cancelled) return;
+      setGeocoding(true);
+      try {
+        await fetch("/api/geocode/contacted?limit=25", { method: "POST" });
+        if (!cancelled) window.location.reload();
+      } catch {
+        if (!cancelled) setGeocoding(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // Run once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="space-y-3">
       {ungeocoded > 0 && (
