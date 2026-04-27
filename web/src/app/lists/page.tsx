@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import AppShell, { type CandidateProfile } from "@/components/AppShell";
+import DeleteListButton from "./DeleteListButton";
 
 export const dynamic = "force-dynamic";
 
@@ -81,9 +82,12 @@ export default async function ListsPage() {
                       </div>
                     )}
                   </div>
-                  <span className="shrink-0 text-xs text-[var(--color-ink-subtle)]">
-                    {new Date(l.created_at).toLocaleDateString()}
-                  </span>
+                  <div className="shrink-0 flex flex-col items-end gap-2">
+                    <span className="text-xs text-[var(--color-ink-subtle)]">
+                      {new Date(l.created_at).toLocaleDateString()}
+                    </span>
+                    <DeleteListButton listId={l.id} listName={l.name} />
+                  </div>
                 </div>
               </li>
             );
