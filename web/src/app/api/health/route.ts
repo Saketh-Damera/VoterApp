@@ -15,6 +15,8 @@ export async function GET(_req: NextRequest) {
     env: {
       ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY,
       OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+      OpenAI_Whisper: !!process.env.OpenAI_Whisper,
+      whisper_key_resolved: !!(process.env.OPENAI_API_KEY ?? process.env.OpenAI_Whisper),
       NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: !!process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
       JED_MODEL: process.env.JED_MODEL ?? "claude-haiku-4-5 (default)",

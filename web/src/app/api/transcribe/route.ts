@@ -8,7 +8,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
-  const key = process.env.OPENAI_API_KEY;
+  // Accept either env var name. OPENAI_API_KEY is the standard convention;
+  // OpenAI_Whisper is what's currently in Vercel for this project.
+  const key = process.env.OPENAI_API_KEY ?? process.env.OpenAI_Whisper;
   if (!key) {
     return Response.json(
       {
