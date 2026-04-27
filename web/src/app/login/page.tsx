@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import JedLogo from "@/components/JedLogo";
@@ -8,6 +8,29 @@ import JedLogo from "@/components/JedLogo";
 type Result = "ok" | "confirm_email" | { error: string };
 
 export default function LoginPage() {
+  // useSearchParams forces this page out of static prerender; wrapping it in
+  // Suspense lets Next.js 16 still build cleanly.
+  return (
+    <Suspense fallback={<LoginShell />}>
+      <LoginInner />
+    </Suspense>
+  );
+}
+
+function LoginShell() {
+  return (
+    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6 py-12">
+      <div className="card p-6">
+        <div className="mb-3 flex justify-center">
+          <JedLogo size="lg" href="" />
+        </div>
+        <p className="text-center text-sm text-[var(--color-ink-subtle)]">Loading...</p>
+      </div>
+    </main>
+  );
+}
+
+function LoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = getSupabaseBrowser();
