@@ -9,6 +9,7 @@ returns void
 language plpgsql
 security invoker
 set search_path = public
+set statement_timeout = '300s'
 as $$
 declare
     v_owner uuid;
