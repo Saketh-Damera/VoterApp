@@ -1,6 +1,7 @@
 import { getSupabaseServer } from "@/lib/supabase/server";
 import AppShell, { type CandidateProfile } from "@/components/AppShell";
 import PeopleClient from "./PeopleClient";
+import ExportButton from "./ExportButton";
 
 export const dynamic = "force-dynamic";
 
@@ -59,9 +60,7 @@ export default async function PeoplePage() {
       <header className="mb-6 border-b border-[var(--color-border)] pb-6">
         <div className="flex items-baseline justify-between">
           <h1 className="page-title">Voters contacted</h1>
-          <a href="/api/export/interactions" className="btn-ghost text-xs" title="Download XLSX">
-            Export to Excel
-          </a>
+          <ExportButton />
         </div>
         <p className="page-subtitle mt-2">
           {people.length} {people.length === 1 ? "voter" : "voters"} you&apos;ve logged a conversation with.

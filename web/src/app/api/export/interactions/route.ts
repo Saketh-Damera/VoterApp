@@ -1,17 +1,19 @@
 import ExcelJS from "exceljs";
 import { getSupabaseServer } from "@/lib/supabase/server";
+import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 type Row = {
   id: string;
-  captured_name: string;
+  captured_name: string | null;
   captured_location: string | null;
   notes: string | null;
   created_at: string;
   sentiment: string | null;
   issues: string[] | null;
   tags: string[] | null;
+  voter_ncid: string | null;
   voters: {
     first_name: string | null;
     last_name: string | null;
@@ -24,44 +26,68 @@ type Row = {
   } | null;
 };
 
-export async function GET() {
+type ColumnDef = {
+  key: string;
+  header: string;
+  width: number;
+  // Returns the cell value for a given interaction row.
+  // Date for date cells, string otherwise.
+  value: (r: Row, missing: string) => string | Date;
+};
+
+const ALL_COLUMNS: ColumnDef[] = [
+  { key: "date",      header: "Date",          width: 18, value: (r) => new Date(r.created_at) },
+  { key: "first",     header: "First name",    width: 16, value: (r, m) => r.voters?.first_name ?? m },
+  { key: "last",      header: "Last name",     width: 18, value: (r, m) => r.voters?.last_name ?? m },
+  { key: "address",   header: "Address",       width: 32, value: (r, m) => r.voters?.res_street_address ?? m },
+  { key: "city",      header: "City",          width: 14, value: (r, m) => r.voters?.res_city ?? m },
+  { key: "zip",       header: "ZIP",           width: 10, value: (r, m) => r.voters?.res_zip ?? m },
+  { key: "party",     header: "Party",         width: 8,  value: (r, m) => r.voters?.party_cd ?? m },
+  { key: "byear",     header: "Birth year",    width: 10, value: (r, m) => r.voters?.birth_year != null ? String(r.voters.birth_year) : m },
+  { key: "precinct",  header: "Precinct",      width: 16, value: (r, m) => r.voters?.precinct_desc ?? m },
+  { key: "context",   header: "Context",       width: 22, value: (r, m) => r.captured_location ?? m },
+  { key: "sentiment", header: "Sentiment",     width: 18, value: (r, m) => r.sentiment ?? m },
+  { key: "issues",    header: "Issues",        width: 32, value: (r) => (r.issues ?? []).join(", ") },
+  { key: "tags",      header: "Tags",          width: 32, value: (r) => (r.tags ?? []).join(", ") },
+  { key: "notes",     header: "Notes",         width: 60, value: (r, m) => r.notes ?? m },
+  { key: "captured",  header: "Captured name", width: 22, value: (r) => r.captured_name ?? "" },
+  { key: "matched",   header: "Voter file",    width: 22, value: (r) => r.voter_ncid ? "matched" : "unmatched — no previous voter or no data found" },
+];
+
+const DEFAULT_KEYS = ALL_COLUMNS.map((c) => c.key);
+
+export async function GET(req: NextRequest) {
   const supabase = await getSupabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+
+  const url = new URL(req.url);
+  const missing = url.searchParams.get("missing") ?? "NA";
+  const includeUnmatched = (url.searchParams.get("include_unmatched") ?? "1") !== "0";
+  const requestedKeys = url.searchParams.get("columns")?.split(",").map((k) => k.trim()).filter(Boolean);
+  const selectedKeys = requestedKeys?.length ? requestedKeys : DEFAULT_KEYS;
+  const columns = ALL_COLUMNS.filter((c) => selectedKeys.includes(c.key));
+  if (columns.length === 0) {
+    return Response.json({ error: "no valid columns selected" }, { status: 400 });
+  }
 
   const { data, error } = await supabase
     .from("interactions")
     .select(
-      "id, captured_name, captured_location, notes, created_at, sentiment, issues, tags, voters(first_name, last_name, res_street_address, res_city, res_zip, party_cd, birth_year, precinct_desc)",
+      "id, captured_name, captured_location, notes, created_at, sentiment, issues, tags, voter_ncid, voters(first_name, last_name, res_street_address, res_city, res_zip, party_cd, birth_year, precinct_desc)",
     )
     .order("created_at", { ascending: false })
     .returns<Row[]>();
   if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  const rows = (data ?? []).filter((r) => includeUnmatched || r.voter_ncid !== null);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "JED";
   wb.created = new Date();
   const ws = wb.addWorksheet("Interactions");
 
-  ws.columns = [
-    { header: "Date", key: "date", width: 18 },
-    { header: "First name", key: "first", width: 16 },
-    { header: "Last name", key: "last", width: 18 },
-    { header: "Address", key: "address", width: 32 },
-    { header: "City", key: "city", width: 14 },
-    { header: "ZIP", key: "zip", width: 8 },
-    { header: "Party", key: "party", width: 8 },
-    { header: "Birth year", key: "byear", width: 10 },
-    { header: "Precinct", key: "precinct", width: 16 },
-    { header: "Context", key: "context", width: 22 },
-    { header: "Sentiment", key: "sentiment", width: 18 },
-    { header: "Issues", key: "issues", width: 32 },
-    { header: "Tags", key: "tags", width: 32 },
-    { header: "Notes", key: "notes", width: 60 },
-    { header: "Captured name", key: "captured", width: 22 },
-  ];
+  ws.columns = columns.map((c) => ({ header: c.header, key: c.key, width: c.width }));
   ws.getRow(1).font = { bold: true };
   ws.getRow(1).fill = {
     type: "pattern",
@@ -69,25 +95,10 @@ export async function GET() {
     fgColor: { argb: "FFDBEAFE" },
   };
 
-  for (const r of data ?? []) {
-    const v = r.voters;
-    ws.addRow({
-      date: new Date(r.created_at),
-      first: v?.first_name ?? "",
-      last: v?.last_name ?? "",
-      address: v?.res_street_address ?? "",
-      city: v?.res_city ?? "",
-      zip: v?.res_zip ?? "",
-      party: v?.party_cd ?? "",
-      byear: v?.birth_year ?? "",
-      precinct: v?.precinct_desc ?? "",
-      context: r.captured_location ?? "",
-      sentiment: r.sentiment ?? "",
-      issues: (r.issues ?? []).join(", "),
-      tags: (r.tags ?? []).join(", "),
-      notes: r.notes ?? "",
-      captured: r.captured_name,
-    });
+  for (const r of rows) {
+    const cells: Record<string, string | Date> = {};
+    for (const c of columns) cells[c.key] = c.value(r, missing);
+    ws.addRow(cells);
   }
 
   const buffer = await wb.xlsx.writeBuffer();

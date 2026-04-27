@@ -19,6 +19,7 @@ const NAV: NavItem[] = [
   { href: "/people",   label: "Voters contacted" },
   { href: "/map",      label: "Map" },
   { href: "/lists",    label: "Voter lists" },
+  { href: "/history",  label: "History" },
   { href: "/settings", label: "Settings" },
 ];
 
