@@ -6,13 +6,18 @@ export const runtime = "nodejs";
 
 const SYSTEM = `You are JED, a retrieval and organization tool for a local political campaign.
 
-You have access to the candidate's complete log of voter conversations: who they talked to, where, when, what was said, the inferred sentiment, and any issue / tag labels. You also see the candidate's profile and aggregate counts.
+You have access to:
+- conversations: every voter conversation the candidate has logged (who, where, when, sentiment, issues, tags, notes).
+- voter_lookup: voters from the candidate's voter files whose name resembles tokens in the user's question. Empty unless the question mentions a name. Use this to answer "the X family" or "find anyone named Y" questions, and to list people the candidate has not yet talked to.
+- candidate, election_days_left, stats: profile and aggregate counts.
 
 Your job is to find, list, and organize information from this data. You are NOT an advisor.
 
 What you DO:
 - Look up specific people, conversations, issues, locations, dates.
 - Filter and list ("show me supporters who mentioned schools", "who in Ward 2 did I talk to in March").
+- When the user asks about a family or last name (e.g. "the Dasgupta family", "all the Smiths"), present EVERY entry in voter_lookup that matches that surname. Don't pick one. Don't direct the user to a single result. Output them as a numbered list with name, address, city, and party so the user can choose.
+- Cross-reference voter_lookup entries with conversations: note which voters the candidate has already spoken with (and the sentiment / date) and which ones are file-only with no conversation yet.
 - Summarize what's in the data when asked ("what issues have come up most often").
 - Recall a specific conversation by detail ("the person at PTA who cared about traffic").
 
@@ -25,8 +30,9 @@ What you DON'T do:
 If the user asks an advisory question ("who should I call today?"), reply briefly that you don't make recommendations and suggest what they could ask for instead — e.g. "I don't make recommendations, but I can show you everyone you haven't talked to in 30+ days, or list undecided voters from a particular area."
 
 Format:
-- Be direct. 2-4 sentences for lookups, or a short bulleted list for "list / show me" questions.
-- Cite specific names and identifying details (where you talked, what they said) when recalling people.
+- Be direct. 2-4 sentences for lookups, or a short numbered/bulleted list for "list / show me / family" questions.
+- For family/surname questions, list every match from voter_lookup. Format each line: "1. Pinaki Dasgupta — 123 Main St, Tenafly · DEM (talked 2026-04-01, supportive)" or "2. Anjali Dasgupta — 123 Main St, Tenafly · DEM (no conversation logged)".
+- Cite specific names and identifying details when recalling people.
 - If the data doesn't contain the answer, say so. Don't invent voters, numbers, issues, or addresses.
 - No filler ("Great question!", "Certainly!"). No markdown headers.`;
 
@@ -39,15 +45,18 @@ export async function POST(req: NextRequest) {
   const question = (body.question as string | undefined)?.trim();
   if (!question) return Response.json({ error: "question required" }, { status: 400 });
 
-  const [{ data: candidate }, { data: stats }, { data: interactions }] = await Promise.all([
+  const [
+    { data: candidate },
+    { data: stats },
+    { data: interactions },
+    { data: nameMatches },
+  ] = await Promise.all([
     supabase
       .from("candidates")
       .select("candidate_name, office, jurisdiction, election_date, race_type")
       .eq("user_id", user.id)
       .maybeSingle(),
     supabase.rpc("dashboard_stats"),
-    // Pull every conversation the candidate has logged. For a first-time
-    // local campaign this is hundreds, not thousands.
     supabase
       .from("interactions")
       .select(
@@ -55,6 +64,7 @@ export async function POST(req: NextRequest) {
       )
       .order("created_at", { ascending: false })
       .limit(500),
+    supabase.rpc("find_voters_by_name", { q: question, max_results: 30 }),
   ]);
 
   const daysLeft = candidate?.election_date
@@ -94,11 +104,32 @@ export async function POST(req: NextRequest) {
     notes: r.notes ?? null,
   }));
 
+  type VoterLookupRow = {
+    ncid: string;
+    first_name: string | null;
+    middle_name: string | null;
+    last_name: string | null;
+    res_street_address: string | null;
+    res_city: string | null;
+    party_cd: string | null;
+    birth_year: number | null;
+    match_count: number;
+  };
+  const voter_lookup = ((nameMatches as VoterLookupRow[] | null) ?? []).map((v) => ({
+    name: [v.first_name, v.middle_name, v.last_name].filter(Boolean).join(" ") || "(no name)",
+    address: v.res_street_address ?? null,
+    city: v.res_city ?? null,
+    party: v.party_cd ?? null,
+    birth_year: v.birth_year ?? null,
+    ncid: v.ncid,
+  }));
+
   const context = JSON.stringify({
     candidate,
     election_days_left: daysLeft,
     stats,
     conversations,
+    voter_lookup,
   });
 
   try {
