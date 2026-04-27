@@ -22,6 +22,14 @@ export type TalkedTo = {
   total_votes: number | null;
   is_unmatched: boolean;
   captured_name: string | null;
+  list_ids: string[] | null;
+};
+
+export type ListMeta = {
+  id: string;
+  name: string;
+  city: string | null;
+  race_type: string | null;
 };
 
 type ExtendedProfile = CandidateProfile & { race_type: string | null };
@@ -39,6 +47,13 @@ export default async function PeoplePage() {
   const { data: raw } = await supabase.rpc("people_talked_to", { p_limit: 500 });
   const people = (raw as TalkedTo[] | null) ?? [];
 
+  const { data: listsRaw } = await supabase
+    .from("voter_lists")
+    .select("id, name, city, race_type")
+    .order("created_at", { ascending: false })
+    .returns<ListMeta[]>();
+  const lists = listsRaw ?? [];
+
   return (
     <AppShell profile={profile ?? null}>
       <header className="mb-6 border-b border-[var(--color-border)] pb-6">
@@ -52,7 +67,7 @@ export default async function PeoplePage() {
           {people.length} {people.length === 1 ? "voter" : "voters"} you&apos;ve logged a conversation with.
         </p>
       </header>
-      <PeopleClient initial={people} raceType={profile?.race_type ?? null} />
+      <PeopleClient initial={people} raceType={profile?.race_type ?? null} lists={lists} />
     </AppShell>
   );
 }

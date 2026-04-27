@@ -8,9 +8,21 @@ type List = {
   id: string;
   name: string;
   state: string | null;
+  city: string | null;
+  race_type: string | null;
   source_filename: string | null;
   row_count: number;
   created_at: string;
+};
+
+const RACE_LABEL: Record<string, string> = {
+  primary_dem: "Dem primary",
+  primary_rep: "Rep primary",
+  primary_any: "Primary",
+  general: "General",
+  municipal: "Municipal",
+  special: "Special",
+  unspecified: "",
 };
 
 export default async function ListsPage() {
@@ -25,7 +37,7 @@ export default async function ListsPage() {
 
   const { data: lists } = await supabase
     .from("voter_lists")
-    .select("id, name, state, source_filename, row_count, created_at")
+    .select("id, name, state, city, race_type, source_filename, row_count, created_at")
     .order("created_at", { ascending: false })
     .returns<List[]>();
 
@@ -48,23 +60,34 @@ export default async function ListsPage() {
         </div>
       ) : (
         <ul className="space-y-2">
-          {lists.map((l) => (
-            <li key={l.id} className="card p-4">
-              <div className="flex items-baseline justify-between">
-                <div>
-                  <div className="font-medium text-[var(--color-ink)]">{l.name}</div>
-                  <div className="text-xs text-[var(--color-ink-subtle)]">
-                    {l.state ? `${l.state} · ` : ""}
-                    {l.row_count.toLocaleString()} voters
-                    {l.source_filename ? ` · ${l.source_filename}` : ""}
+          {lists.map((l) => {
+            const raceLabel = l.race_type ? RACE_LABEL[l.race_type] ?? "" : "";
+            const place = [l.city, l.state].filter(Boolean).join(", ");
+            return (
+              <li key={l.id} className="card p-4">
+                <div className="flex items-baseline justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-medium text-[var(--color-ink)]">{l.name}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      {place && <span className="chip chip-neutral">{place}</span>}
+                      {raceLabel && <span className="chip chip-primary">{raceLabel}</span>}
+                      <span className="text-xs text-[var(--color-ink-subtle)]">
+                        {l.row_count.toLocaleString()} voters
+                      </span>
+                    </div>
+                    {l.source_filename && (
+                      <div className="mt-1 text-xs text-[var(--color-ink-subtle)] truncate">
+                        {l.source_filename}
+                      </div>
+                    )}
                   </div>
+                  <span className="shrink-0 text-xs text-[var(--color-ink-subtle)]">
+                    {new Date(l.created_at).toLocaleDateString()}
+                  </span>
                 </div>
-                <span className="text-xs text-[var(--color-ink-subtle)]">
-                  {new Date(l.created_at).toLocaleDateString()}
-                </span>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
     </AppShell>

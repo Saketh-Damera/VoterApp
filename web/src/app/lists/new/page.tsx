@@ -9,6 +9,8 @@ export default function NewListPage() {
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
   const [state, setState] = useState("");
+  const [city, setCity] = useState("");
+  const [raceType, setRaceType] = useState("unspecified");
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<{
@@ -32,6 +34,8 @@ export default function NewListPage() {
     fd.append("file", file);
     fd.append("name", name.trim() || file.name);
     if (state.trim()) fd.append("state", state.trim().toUpperCase());
+    if (city.trim()) fd.append("city", city.trim());
+    if (raceType) fd.append("race_type", raceType);
 
     const res = await fetch("/api/lists/upload", { method: "POST", body: fd });
     const json = await res.json();
@@ -86,17 +90,52 @@ export default function NewListPage() {
           />
         </label>
 
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-ink-subtle)]">
+              State
+            </span>
+            <input
+              value={state}
+              onChange={(e) => setState(e.target.value)}
+              placeholder="NJ"
+              maxLength={2}
+              className="input"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-ink-subtle)]">
+              City
+            </span>
+            <input
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="Tenafly"
+              className="input"
+            />
+          </label>
+        </div>
+
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-ink-subtle)]">
-            State (optional)
+            Race this list is for
           </span>
-          <input
-            value={state}
-            onChange={(e) => setState(e.target.value)}
-            placeholder="NJ"
-            maxLength={2}
+          <select
+            value={raceType}
+            onChange={(e) => setRaceType(e.target.value)}
             className="input"
-          />
+          >
+            <option value="unspecified">Unspecified</option>
+            <option value="general">General election voters</option>
+            <option value="primary_dem">Democratic primary voters</option>
+            <option value="primary_rep">Republican primary voters</option>
+            <option value="primary_any">Primary voters (any party)</option>
+            <option value="municipal">Municipal voters</option>
+            <option value="special">Special election voters</option>
+          </select>
+          <span className="mt-1 text-xs text-[var(--color-ink-subtle)]">
+            Tag the list so you can filter conversations by which list a person came from.
+          </span>
         </label>
 
         <button

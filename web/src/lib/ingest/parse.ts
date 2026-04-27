@@ -17,8 +17,36 @@ export async function parseUploadedFile(
 ): Promise<ParsedFile> {
   const lower = filename.toLowerCase();
   if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) return parseXlsx(buffer);
-  // CSV / TSV / TXT: let papaparse sniff the delimiter
+  // CSV / TSV / TXT / pipe-delimited: papaparse auto-detects the delimiter
   return parseDelimited(buffer);
+}
+
+// ExcelJS cells can be strings, numbers, JS Dates, formula objects, hyperlink
+// objects, or rich-text objects. Normalize all of them to a clean string.
+function cellToString(cell: unknown): string {
+  if (cell == null) return "";
+  if (cell instanceof Date) return cell.toISOString().slice(0, 10);
+  if (typeof cell === "number" || typeof cell === "boolean") return String(cell);
+  if (typeof cell === "string") return cell.trim();
+  if (typeof cell === "object") {
+    const obj = cell as Record<string, unknown>;
+    // Formula cell: { formula, result }
+    if ("result" in obj) return cellToString(obj.result);
+    // Hyperlink cell: { text, hyperlink }
+    if ("text" in obj && typeof obj.text === "string") return obj.text.trim();
+    // Rich text: { richText: [{ text }, ...] }
+    if (Array.isArray(obj.richText)) {
+      return obj.richText
+        .map((p) => (typeof p === "object" && p && "text" in p ? String((p as { text: unknown }).text ?? "") : ""))
+        .join("")
+        .trim();
+    }
+    // Shared-string cell: { sharedString: "..." }
+    if ("sharedString" in obj && typeof obj.sharedString === "string") return obj.sharedString.trim();
+    // Error cell: skip
+    if ("error" in obj) return "";
+  }
+  return String(cell).trim();
 }
 
 async function parseXlsx(buffer: ArrayBuffer): Promise<ParsedFile> {
@@ -27,30 +55,28 @@ async function parseXlsx(buffer: ArrayBuffer): Promise<ParsedFile> {
   const ws = wb.worksheets[0];
   if (!ws) throw new Error("XLSX file has no worksheets");
 
-  // Find the first row that looks like a header (contains text, not all blank)
+  // Find the first row that looks like a header (3+ non-empty values)
   let headerRowIndex = 1;
   for (let r = 1; r <= Math.min(ws.rowCount, 20); r++) {
-    const row = ws.getRow(r);
-    const values = (row.values as (string | number | null | undefined)[]).slice(1);
-    const nonEmpty = values.filter((v) => v !== null && v !== undefined && String(v).trim() !== "");
+    const values = (ws.getRow(r).values as unknown[]).slice(1);
+    const nonEmpty = values.filter((v) => cellToString(v) !== "");
     if (nonEmpty.length >= 3) {
       headerRowIndex = r;
       break;
     }
   }
 
-  const headers = ((ws.getRow(headerRowIndex).values as unknown[]).slice(1) as unknown[])
-    .map((v) => (v == null ? "" : String(v).trim()));
+  const rawHeaders = (ws.getRow(headerRowIndex).values as unknown[]).slice(1);
+  const headers = rawHeaders.map((v) => cellToString(v));
 
   const rows: Record<string, string>[] = [];
   for (let r = headerRowIndex + 1; r <= ws.rowCount && rows.length < MAX_ROWS; r++) {
-    const raw = (ws.getRow(r).values as unknown[]).slice(1) as unknown[];
+    const raw = (ws.getRow(r).values as unknown[]).slice(1);
     const row: Record<string, string> = {};
     let anyValue = false;
     headers.forEach((h, i) => {
       if (!h) return;
-      const cell = raw[i];
-      const v = cell == null ? "" : String(cell).trim();
+      const v = cellToString(raw[i]);
       if (v !== "") anyValue = true;
       row[h] = v;
     });
@@ -66,11 +92,19 @@ async function parseXlsx(buffer: ArrayBuffer): Promise<ParsedFile> {
 }
 
 async function parseDelimited(buffer: ArrayBuffer): Promise<ParsedFile> {
-  const text = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+  // Try utf-8 first; fall back to latin1 if there are replacement chars
+  // (state voter files are often Windows-1252 / latin1).
+  let text = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+  if (text.includes("�")) {
+    text = new TextDecoder("latin1").decode(buffer);
+  }
+  // Strip UTF-8 BOM if present
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
   const result = Papa.parse<Record<string, string>>(text, {
     header: true,
     skipEmptyLines: true,
-    delimiter: "", // auto-detect
+    delimiter: "", // auto-detect: comma, tab, pipe, semicolon
     dynamicTyping: false,
     preview: MAX_ROWS,
   });

@@ -2,23 +2,45 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import type { TalkedTo } from "./page";
+import type { TalkedTo, ListMeta } from "./page";
 import { sentimentChip } from "@/lib/ui/chips";
 import { voteTag, raceLabelFor } from "@/lib/ui/voteTag";
 
 const SENTIMENTS = ["supportive", "leaning_supportive", "undecided", "leaning_opposed", "opposed", "unknown"];
 
+const RACE_LABEL: Record<string, string> = {
+  primary_dem: "Dem primary",
+  primary_rep: "Rep primary",
+  primary_any: "Primary",
+  general: "General",
+  municipal: "Municipal",
+  special: "Special",
+  unspecified: "",
+};
+
+function listLabel(l: ListMeta): string {
+  const race = l.race_type ? RACE_LABEL[l.race_type] ?? "" : "";
+  const parts = [l.name];
+  const meta = [l.city, race].filter(Boolean).join(" · ");
+  if (meta) parts.push(`(${meta})`);
+  return parts.join(" ");
+}
+
 export default function PeopleClient({
   initial,
   raceType,
+  lists,
 }: {
   initial: TalkedTo[];
   raceType: string | null;
+  lists: ListMeta[];
 }) {
   const [rows, setRows] = useState<TalkedTo[]>(initial);
   const [q, setQ] = useState("");
   const [party, setParty] = useState("");
   const [sentiment, setSentiment] = useState("");
+  const [listId, setListId] = useState("");
+  const [city, setCity] = useState("");
   const [editing, setEditing] = useState<TalkedTo | null>(null);
   const raceLabel = raceLabelFor(raceType);
 
@@ -26,12 +48,21 @@ export default function PeopleClient({
     () => Array.from(new Set(rows.map((p) => p.party_cd).filter(Boolean))) as string[],
     [rows],
   );
+  const cities = useMemo(
+    () =>
+      Array.from(new Set(rows.map((p) => p.res_city?.trim()).filter(Boolean) as string[]))
+        .sort((a, b) => a.localeCompare(b)),
+    [rows],
+  );
 
   const filtered = useMemo(() => {
     const term = q.toLowerCase().trim();
+    const cityNorm = city.trim().toLowerCase();
     return rows.filter((p) => {
       if (party && p.party_cd !== party) return false;
       if (sentiment && p.last_sentiment !== sentiment) return false;
+      if (listId && !(p.list_ids ?? []).includes(listId)) return false;
+      if (cityNorm && (p.res_city ?? "").trim().toLowerCase() !== cityNorm) return false;
       if (!term) return true;
       const hay = [
         p.first_name, p.last_name, p.captured_name,
@@ -41,7 +72,7 @@ export default function PeopleClient({
       ].filter(Boolean).join(" ").toLowerCase();
       return hay.includes(term);
     });
-  }, [rows, q, party, sentiment]);
+  }, [rows, q, party, sentiment, listId, city]);
 
   function displayName(p: TalkedTo): string {
     if (p.is_unmatched) return p.captured_name || "(no name)";
@@ -103,6 +134,28 @@ export default function PeopleClient({
             {SENTIMENTS.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
           </select>
         </label>
+        {lists.length > 0 && (
+          <label className="flex flex-col gap-1">
+            <span className="section-label">List</span>
+            <select value={listId} onChange={(e) => setListId(e.target.value)} className="input !py-2 max-w-[16rem]">
+              <option value="">All lists</option>
+              {lists.map((l) => (
+                <option key={l.id} value={l.id}>{listLabel(l)}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        {cities.length > 1 && (
+          <label className="flex flex-col gap-1">
+            <span className="section-label">City</span>
+            <select value={city} onChange={(e) => setCity(e.target.value)} className="input !py-2">
+              <option value="">All</option>
+              {cities.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       {filtered.length === 0 ? (
