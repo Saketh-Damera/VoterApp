@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import PersonAIActions from "./PersonAIActions";
-import FundraiseButton from "./FundraiseButton";
 import { sentimentChip } from "@/lib/ui/chips";
 import { voteTag, raceLabelFor } from "@/lib/ui/voteTag";
 
@@ -105,19 +104,6 @@ export default async function PersonPage({
   };
   const relevance = (relevanceRaw as Relevance | null) ?? null;
 
-  const { data: prospectRow } = await supabase
-    .from("fundraising_prospects")
-    .select("id, status, estimated_capacity, asked_amount, committed_amount, donated_amount")
-    .eq("voter_ncid", ncid)
-    .maybeSingle<{
-      id: string;
-      status: string;
-      estimated_capacity: number | null;
-      asked_amount: number | null;
-      committed_amount: number | null;
-      donated_amount: number | null;
-    }>();
-
   const fullName = [p.voter.first_name, p.voter.middle_name, p.voter.last_name]
     .filter(Boolean)
     .join(" ");
@@ -160,33 +146,6 @@ export default async function PersonPage({
           }
         />
         <Fact label="Last voted" value={relevance?.last_voted ?? p.turnout?.last_voted ?? null} />
-      </section>
-
-      {/* Fundraising link/badge */}
-      <section className="mb-6">
-        <h2 className="section-label mb-2">Fundraising</h2>
-        {prospectRow ? (
-          <Link href="/fundraising" className="card card-hover block p-3 text-sm">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="font-medium">In pipeline</span>
-              <span className={`chip ${prospectRow.status === "donated" ? "chip-success" : prospectRow.status === "declined" ? "chip-danger" : "chip-primary"}`}>
-                {prospectRow.status}
-              </span>
-            </div>
-            <div className="mt-1 text-xs text-[var(--color-ink-subtle)]">
-              {prospectRow.estimated_capacity ? `Capacity $${prospectRow.estimated_capacity} · ` : ""}
-              {prospectRow.asked_amount ? `Asked $${prospectRow.asked_amount} · ` : ""}
-              {prospectRow.committed_amount ? `Committed $${prospectRow.committed_amount} · ` : ""}
-              {prospectRow.donated_amount ? `Donated $${prospectRow.donated_amount}` : ""}
-              {!prospectRow.estimated_capacity && !prospectRow.asked_amount && !prospectRow.committed_amount && !prospectRow.donated_amount && "No amounts set yet"}
-            </div>
-          </Link>
-        ) : (
-          <div className="card flex items-center justify-between p-3 text-sm">
-            <span className="text-[var(--color-ink-subtle)]">Not in fundraising pipeline.</span>
-            <FundraiseButton ncid={ncid} />
-          </div>
-        )}
       </section>
 
       {p.household.length > 0 && (

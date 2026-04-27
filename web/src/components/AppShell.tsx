@@ -13,16 +13,12 @@ export type CandidateProfile = {
 type NavItem = { href: string; label: string };
 
 const NAV: NavItem[] = [
-  { href: "/",            label: "Dashboard" },
-  { href: "/debrief",     label: "Talk to JED" },
-  { href: "/people",      label: "Voters contacted" },
-  { href: "/map",         label: "Map" },
-  { href: "/network",     label: "Network" },
-  { href: "/todos",       label: "To-dos" },
-  { href: "/fundraising", label: "Fundraising" },
-  { href: "/events",      label: "Events" },
-  { href: "/lists",       label: "Voter lists" },
-  { href: "/settings",    label: "Settings" },
+  { href: "/",         label: "Dashboard" },
+  { href: "/debrief",  label: "Talk to JED" },
+  { href: "/people",   label: "Voters contacted" },
+  { href: "/map",      label: "Map" },
+  { href: "/lists",    label: "Voter lists" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export default function AppShell({

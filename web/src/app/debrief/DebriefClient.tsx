@@ -275,19 +275,13 @@ export default function DebriefClient() {
                         <span className="text-xs text-[var(--color-ink-subtle)]">{m.relationship}</span>
                       )}
                       {m.should_contact && (
-                        <span className="chip chip-warm">follow-up created</span>
+                        <span className="chip chip-warm">worth a call</span>
                       )}
                     </div>
                     <p className="text-xs text-[var(--color-ink-muted)]">{m.context}</p>
                   </li>
                 ))}
               </ul>
-              {result.todos_created > 0 && (
-                <p className="mt-2 text-xs text-[var(--color-ink-subtle)]">
-                  Added {result.todos_created} to-do{result.todos_created === 1 ? "" : "s"}. See{" "}
-                  <a href="/todos" className="underline">To-dos</a>.
-                </p>
-              )}
             </div>
           )}
         </div>

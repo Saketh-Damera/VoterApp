@@ -68,31 +68,8 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: insErr?.message ?? "insert failed" }, { status: 500 });
   }
 
-  // 4. Auto-create reminder if follow_up was extracted and we matched a voter
-  if (extract.follow_up && pickedNcid) {
-    const due = new Date();
-    due.setDate(due.getDate() + extract.follow_up.days_until);
-    await supabase.from("reminders").insert({
-      user_id: user.id,
-      interaction_id: inserted.id,
-      voter_ncid: pickedNcid,
-      due_at: due.toISOString(),
-      message: extract.follow_up.action,
-    });
-  }
-
-  // Auto-create todos for any mentioned people the candidate should contact.
-  const toContact = (extract.mentioned_people ?? []).filter((p) => p.should_contact);
-  for (const p of toContact) {
-    const due = new Date();
-    due.setDate(due.getDate() + 7);
-    await supabase.from("todos").insert({
-      user_id: user.id,
-      title: `Reach out to ${p.name} (referred by ${extract.captured_name || "voter"})`,
-      notes: `${p.relationship ? p.relationship + " — " : ""}${p.context}`,
-      due_date: due.toISOString().slice(0, 10),
-    });
-  }
+  // Mentioned people are surfaced in the response so the candidate can see who
+  // came up — but we no longer auto-create reminders or todos for them.
 
   return Response.json({
     ok: true,
@@ -100,6 +77,6 @@ export async function POST(req: NextRequest) {
     voter_ncid: pickedNcid,
     extract,
     match_candidates: matches,
-    todos_created: toContact.length,
+    todos_created: 0,
   });
 }

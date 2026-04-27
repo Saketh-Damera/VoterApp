@@ -45,17 +45,8 @@ export async function POST(
     return Response.json({ error: "update_failed", detail: upErr.message }, { status: 500 });
   }
 
-  if (analysis.follow_up && interaction.voter_ncid) {
-    const due = new Date();
-    due.setDate(due.getDate() + analysis.follow_up.days_until);
-    await supabase.from("reminders").insert({
-      user_id: user.id,
-      interaction_id: id,
-      voter_ncid: interaction.voter_ncid,
-      due_at: due.toISOString(),
-      message: analysis.follow_up.action,
-    });
-  }
+  // Reminders feature was removed; the follow_up text is captured in the
+  // interaction's analysis and surfaced in the UI.
 
   return Response.json({ ok: true, analysis });
 }
