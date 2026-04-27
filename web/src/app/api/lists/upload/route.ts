@@ -61,28 +61,49 @@ export async function POST(req: NextRequest) {
   }
   const listId = listRow.id as string;
 
-  // 4. Transform rows using the mapping, insert in chunks
+  // 4. Transform rows. Voters are deduped by ncid globally — uploading the
+  //    same person to a second list reuses the existing voter row but creates
+  //    a new (list, voter) membership.
   const voterRows = parsed.rows.map((r, idx) => rowToVoter(r, mapping, listId, idx));
   const CHUNK = 500;
-  let inserted = 0;
+  let votersAdded = 0;
+  let membersAdded = 0;
   for (let i = 0; i < voterRows.length; i += CHUNK) {
     const chunk = voterRows.slice(i, i + CHUNK);
-    const { error } = await supabase.from("voters").insert(chunk);
-    if (error) {
-      // roll back the list on failure so we don't leave an empty shell
+
+    // Insert new voter rows; ignore conflicts on existing ncids.
+    // Supabase's upsert with onConflict + ignoreDuplicates does this.
+    const { error: voterErr } = await supabase
+      .from("voters")
+      .upsert(chunk, { onConflict: "ncid", ignoreDuplicates: true });
+    if (voterErr) {
       await supabase.from("voter_lists").delete().eq("id", listId);
       return Response.json({
-        error: `insert failed after ${inserted} rows: ${error.message}`,
+        error: `voter insert failed after ${votersAdded} rows: ${voterErr.message}`,
         sample_row: chunk[0],
       }, { status: 500 });
     }
-    inserted += chunk.length;
+    votersAdded += chunk.length;
+
+    // Insert membership rows for every voter in this chunk.
+    const memberRows = chunk.map((v) => ({ list_id: listId, voter_ncid: v.ncid }));
+    const { error: memberErr } = await supabase
+      .from("voter_list_members")
+      .upsert(memberRows, { onConflict: "list_id,voter_ncid", ignoreDuplicates: true });
+    if (memberErr) {
+      await supabase.from("voter_lists").delete().eq("id", listId);
+      return Response.json({
+        error: `membership insert failed after ${membersAdded} rows: ${memberErr.message}`,
+      }, { status: 500 });
+    }
+    membersAdded += memberRows.length;
   }
 
   return Response.json({
     ok: true,
     list_id: listId,
-    rows: inserted,
+    rows: membersAdded,
+    voters_added: votersAdded,
     mapping,
     sample_before: parsed.sampleRows[0] ?? null,
     sample_after: voterRows[0] ?? null,
