@@ -104,70 +104,126 @@ export default function PeopleClient({
           {rows.length === 0 ? "No conversations logged yet." : "No matches."}
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-[0.08em] text-[var(--color-ink-subtle)]">
-              <tr className="border-b border-[var(--color-border)]">
-                <th className="py-2 pr-3 font-semibold">Name</th>
-                <th className="py-2 pr-3 font-semibold hidden md:table-cell">Address</th>
-                <th className="py-2 pr-3 font-semibold">Party</th>
-                <th className="py-2 pr-3 font-semibold">Sentiment</th>
-                <th className="py-2 pr-3 font-semibold">Turnout</th>
-                <th className="py-2 pr-3 font-semibold hidden lg:table-cell">Notes</th>
-                <th className="py-2 pr-3 font-semibold hidden sm:table-cell">Last</th>
-                <th className="py-2 font-semibold"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p) => {
-                const name = [p.first_name, p.last_name].filter(Boolean).join(" ") || "(no name)";
-                const tag = voteTag(p.relevant_votes, p.total_votes, raceLabel);
-                return (
-                  <tr key={p.voter_ncid} className="border-b border-[var(--color-border)] hover:bg-[var(--color-surface-muted)]">
-                    <td className="py-3 pr-3">
-                      <Link href={`/people/${p.voter_ncid}`} className="font-medium hover:text-[var(--color-primary)]">
-                        {name}
-                      </Link>
-                      {p.interaction_count > 1 && (
-                        <span className="ml-2 text-xs text-[var(--color-ink-subtle)]">×{p.interaction_count}</span>
-                      )}
-                    </td>
-                    <td className="py-3 pr-3 text-xs text-[var(--color-ink-muted)] hidden md:table-cell">
-                      {p.res_street_address}{p.res_city ? ", " + p.res_city : ""}
-                    </td>
-                    <td className="py-3 pr-3 text-xs">{p.party_cd ?? "—"}</td>
-                    <td className="py-3 pr-3 text-xs">
-                      <select
-                        value={p.last_sentiment ?? ""}
-                        onChange={(e) => changeSentiment(p, e.target.value)}
-                        className={`input !px-2 !py-1 text-xs w-full max-w-[10rem] ${p.last_sentiment ? sentimentChip(p.last_sentiment) : ""}`}
-                      >
-                        <option value="">—</option>
-                        {SENTIMENTS.map((s) => (
-                          <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="py-3 pr-3 text-xs">
-                      <span className={`chip ${tag.chipClass}`}>{tag.text}</span>
-                    </td>
-                    <td className="py-3 pr-3 text-xs text-[var(--color-ink-muted)] hidden lg:table-cell max-w-[24rem]">
-                      <span className="line-clamp-2">{p.last_notes ?? "—"}</span>
-                    </td>
-                    <td className="py-3 pr-3 text-xs text-[var(--color-ink-subtle)] hidden sm:table-cell whitespace-nowrap">
+        <>
+          {/* Mobile: card list */}
+          <ul className="space-y-3 md:hidden">
+            {filtered.map((p) => {
+              const name = [p.first_name, p.last_name].filter(Boolean).join(" ") || "(no name)";
+              const tag = voteTag(p.relevant_votes, p.total_votes, raceLabel);
+              return (
+                <li key={p.voter_ncid} className="card p-4">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <Link href={`/people/${p.voter_ncid}`} className="font-medium text-base hover:text-[var(--color-primary)]">
+                      {name}
+                    </Link>
+                    <span className="shrink-0 text-xs text-[var(--color-ink-subtle)]">
                       {new Date(p.last_contact).toLocaleDateString()}
-                    </td>
-                    <td className="py-3">
-                      <button onClick={() => setEditing(p)} className="btn-ghost text-xs">
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    </span>
+                  </div>
+                  {(p.res_street_address || p.res_city) && (
+                    <p className="mt-1 text-xs text-[var(--color-ink-subtle)]">
+                      {p.res_street_address}{p.res_city ? ", " + p.res_city : ""}
+                      {p.party_cd ? ` · ${p.party_cd}` : ""}
+                    </p>
+                  )}
+                  {p.last_notes && (
+                    <p className="mt-2 line-clamp-3 text-sm text-[var(--color-ink-muted)]">{p.last_notes}</p>
+                  )}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <select
+                      value={p.last_sentiment ?? ""}
+                      onChange={(e) => changeSentiment(p, e.target.value)}
+                      className="input !px-3 !py-2 text-sm"
+                    >
+                      <option value="">— sentiment —</option>
+                      {SENTIMENTS.map((s) => (
+                        <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+                      ))}
+                    </select>
+                    <span className={`chip ${tag.chipClass}`}>{tag.text}</span>
+                    {p.interaction_count > 1 && (
+                      <span className="text-xs text-[var(--color-ink-subtle)]">{p.interaction_count} talks</span>
+                    )}
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button onClick={() => setEditing(p)} className="btn-secondary text-sm flex-1">
+                      Edit
+                    </button>
+                    <Link href={`/people/${p.voter_ncid}`} className="btn-ghost text-sm">
+                      Open
+                    </Link>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          {/* Desktop: table */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs uppercase tracking-[0.08em] text-[var(--color-ink-subtle)]">
+                <tr className="border-b border-[var(--color-border)]">
+                  <th className="py-2 pr-3 font-semibold">Name</th>
+                  <th className="py-2 pr-3 font-semibold">Address</th>
+                  <th className="py-2 pr-3 font-semibold">Party</th>
+                  <th className="py-2 pr-3 font-semibold">Sentiment</th>
+                  <th className="py-2 pr-3 font-semibold">Turnout</th>
+                  <th className="py-2 pr-3 font-semibold hidden lg:table-cell">Notes</th>
+                  <th className="py-2 pr-3 font-semibold whitespace-nowrap">Last</th>
+                  <th className="py-2 font-semibold"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p) => {
+                  const name = [p.first_name, p.last_name].filter(Boolean).join(" ") || "(no name)";
+                  const tag = voteTag(p.relevant_votes, p.total_votes, raceLabel);
+                  return (
+                    <tr key={p.voter_ncid} className="border-b border-[var(--color-border)] hover:bg-[var(--color-surface-muted)]">
+                      <td className="py-3 pr-3">
+                        <Link href={`/people/${p.voter_ncid}`} className="font-medium hover:text-[var(--color-primary)]">
+                          {name}
+                        </Link>
+                        {p.interaction_count > 1 && (
+                          <span className="ml-2 text-xs text-[var(--color-ink-subtle)]">×{p.interaction_count}</span>
+                        )}
+                      </td>
+                      <td className="py-3 pr-3 text-xs text-[var(--color-ink-muted)]">
+                        {p.res_street_address}{p.res_city ? ", " + p.res_city : ""}
+                      </td>
+                      <td className="py-3 pr-3 text-xs">{p.party_cd ?? "—"}</td>
+                      <td className="py-3 pr-3 text-xs">
+                        <select
+                          value={p.last_sentiment ?? ""}
+                          onChange={(e) => changeSentiment(p, e.target.value)}
+                          className="input !px-2 !py-1 text-xs w-full max-w-[10rem]"
+                        >
+                          <option value="">—</option>
+                          {SENTIMENTS.map((s) => (
+                            <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-3 pr-3 text-xs">
+                        <span className={`chip ${tag.chipClass}`}>{tag.text}</span>
+                      </td>
+                      <td className="py-3 pr-3 text-xs text-[var(--color-ink-muted)] hidden lg:table-cell max-w-[24rem]">
+                        <span className="line-clamp-2">{p.last_notes ?? "—"}</span>
+                      </td>
+                      <td className="py-3 pr-3 text-xs text-[var(--color-ink-subtle)] whitespace-nowrap">
+                        {new Date(p.last_contact).toLocaleDateString()}
+                      </td>
+                      <td className="py-3">
+                        <button onClick={() => setEditing(p)} className="btn-ghost text-xs">
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {editing && (

@@ -2,6 +2,7 @@ import Link from "next/link";
 import LogoutButton from "./LogoutButton";
 import QuickSearch from "./QuickSearch";
 import JedLogo from "./JedLogo";
+import MobileNav from "./MobileNav";
 
 export type CandidateProfile = {
   candidate_name: string;
@@ -69,26 +70,15 @@ export default function AppShell({
         </nav>
       </aside>
 
-      {/* Mobile top bar with nav */}
-      <div className="sticky top-0 z-30 flex w-full flex-col border-b border-[var(--color-border)] bg-[var(--color-surface)] p-3 md:hidden">
-        <div className="flex items-center justify-between">
-          <JedLogo size="sm" />
-          <div className="flex items-center gap-2">
-            <Link href="/people/new" className="btn-primary text-xs">Add Person</Link>
-            <LogoutButton />
-          </div>
+      {/* Mobile top bar */}
+      <div className="sticky top-0 z-30 flex w-full items-center justify-between gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 md:hidden">
+        <Link href="/" aria-label="Home">
+          <JedLogo size="sm" href="" />
+        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/people/new" className="btn-primary text-sm whitespace-nowrap">Add</Link>
+          <MobileNav items={NAV} />
         </div>
-        <nav className="mt-2 flex gap-1 overflow-x-auto">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="whitespace-nowrap rounded-md px-2 py-1 text-xs text-[var(--color-ink-muted)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
       </div>
 
       {/* Main column */}
@@ -105,11 +95,11 @@ export default function AppShell({
         </div>
 
         {/* Mobile: quick search below the nav bar */}
-        <div className="md:hidden px-5 py-3">
+        <div className="md:hidden px-4 py-3">
           <QuickSearch />
         </div>
 
-        <div className="mx-auto max-w-6xl px-5 py-6">
+        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-5 sm:py-6">
           {children}
         </div>
       </div>

@@ -151,13 +151,14 @@ html, body {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    padding: 0.35rem 0.7rem;
+    padding: 0.5rem 0.7rem; /* taller for finger taps */
     color: var(--color-ink-muted);
     font-size: 0.8125rem;
     font-weight: 500;
     border-radius: var(--radius-sm);
     transition: background 120ms ease, color 120ms ease;
     cursor: pointer;
+    min-height: 36px;
   }
   .btn-ghost:hover {
     background: var(--color-surface-muted);
