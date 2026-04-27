@@ -4,10 +4,10 @@ import { useState } from "react";
 import JedLogo from "./JedLogo";
 
 const SUGGESTIONS = [
-  "Who should I call today?",
-  "What issue is coming up most this week?",
-  "Which supporters haven't I followed up with?",
-  "Where am I on fundraising?",
+  "Show me everyone I talked to last week.",
+  "Find conversations that mentioned schools.",
+  "Who at the PTA meeting cared about traffic?",
+  "List voters in Ward 2 I've spoken to.",
 ];
 
 export default function AskJedCard() {
@@ -44,7 +44,7 @@ export default function AskJedCard() {
       <div className="mb-3 flex items-center gap-3">
         <JedLogo size="sm" href="" />
         <span className="text-sm text-[var(--color-ink-subtle)]">
-          Ask JED anything about your campaign.
+          Search your campaign data — names, conversations, issues, places.
         </span>
       </div>
 
@@ -58,7 +58,7 @@ export default function AskJedCard() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="e.g. Who should I call today?"
+          placeholder="e.g. Find conversations that mentioned schools"
           className="input flex-1"
           disabled={loading}
         />
