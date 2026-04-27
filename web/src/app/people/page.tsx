@@ -5,7 +5,7 @@ import PeopleClient from "./PeopleClient";
 export const dynamic = "force-dynamic";
 
 export type TalkedTo = {
-  voter_ncid: string;
+  voter_ncid: string | null;
   first_name: string | null;
   last_name: string | null;
   res_street_address: string | null;
@@ -20,6 +20,8 @@ export type TalkedTo = {
   interaction_count: number;
   relevant_votes: number | null;
   total_votes: number | null;
+  is_unmatched: boolean;
+  captured_name: string | null;
 };
 
 type ExtendedProfile = CandidateProfile & { race_type: string | null };

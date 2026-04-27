@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 type Extract = {
   captured_name: string;
@@ -44,6 +45,9 @@ export default function DebriefClient() {
     match_candidates: Candidate[];
   }>(null);
   const [confirming, setConfirming] = useState(false);
+  const [addedMentions, setAddedMentions] = useState<Set<string>>(new Set());
+  const [addingMention, setAddingMention] = useState<string | null>(null);
+  const supabase = getSupabaseBrowser();
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -202,6 +206,35 @@ export default function DebriefClient() {
   function dismissCandidates() {
     if (!result) return;
     setResult({ ...result, match_candidates: [] });
+  }
+
+  async function addMentionAsContact(mention: {
+    name: string;
+    relationship: string;
+    context: string;
+  }) {
+    setAddingMention(mention.name);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const referredBy = result?.extract.captured_name
+        ? `Referred by ${result.extract.captured_name}`
+        : "Mentioned in a debrief";
+      await supabase.from("interactions").insert({
+        user_id: user.id,
+        voter_ncid: null,
+        captured_name: mention.name,
+        captured_location: referredBy,
+        notes: mention.relationship
+          ? `${mention.relationship}: ${mention.context}`
+          : mention.context,
+        tags: mention.relationship ? [mention.relationship.toLowerCase().replace(/\s+/g, "-")] : [],
+      });
+      setAddedMentions((prev) => new Set(prev).add(mention.name));
+      router.refresh();
+    } finally {
+      setAddingMention(null);
+    }
   }
 
   async function process() {
@@ -404,21 +437,38 @@ export default function DebriefClient() {
           {result.extract.mentioned_people.length > 0 && (
             <div className="mt-4 border-t border-[var(--color-border)] pt-3">
               <div className="section-label mb-2">Others mentioned</div>
-              <ul className="space-y-2">
-                {result.extract.mentioned_people.map((m, i) => (
-                  <li key={i} className="text-sm">
-                    <div className="flex items-baseline gap-2">
-                      <span className="font-medium">{m.name}</span>
-                      {m.relationship && (
-                        <span className="text-xs text-[var(--color-ink-subtle)]">{m.relationship}</span>
-                      )}
-                      {m.should_contact && (
-                        <span className="chip chip-warm">worth a call</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-[var(--color-ink-muted)]">{m.context}</p>
-                  </li>
-                ))}
+              <ul className="space-y-3">
+                {result.extract.mentioned_people.map((m, i) => {
+                  const added = addedMentions.has(m.name);
+                  const adding = addingMention === m.name;
+                  return (
+                    <li key={i} className="rounded-md border border-[var(--color-border)] p-3 text-sm">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <div className="flex flex-wrap items-baseline gap-2">
+                          <span className="font-medium">{m.name}</span>
+                          {m.relationship && (
+                            <span className="text-xs text-[var(--color-ink-subtle)]">{m.relationship}</span>
+                          )}
+                          {m.should_contact && (
+                            <span className="chip chip-warm">worth a call</span>
+                          )}
+                        </div>
+                        {added ? (
+                          <span className="chip chip-success shrink-0">Added</span>
+                        ) : (
+                          <button
+                            onClick={() => addMentionAsContact(m)}
+                            disabled={adding}
+                            className="btn-secondary shrink-0 text-xs"
+                          >
+                            {adding ? "Adding..." : "Add to contacts"}
+                          </button>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs text-[var(--color-ink-muted)]">{m.context}</p>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}

@@ -34,13 +34,19 @@ export default function PeopleClient({
       if (sentiment && p.last_sentiment !== sentiment) return false;
       if (!term) return true;
       const hay = [
-        p.first_name, p.last_name, p.res_street_address, p.res_city,
+        p.first_name, p.last_name, p.captured_name,
+        p.res_street_address, p.res_city,
         p.last_notes,
         ...(p.last_issues ?? []), ...(p.last_tags ?? []),
       ].filter(Boolean).join(" ").toLowerCase();
       return hay.includes(term);
     });
   }, [rows, q, party, sentiment]);
+
+  function displayName(p: TalkedTo): string {
+    if (p.is_unmatched) return p.captured_name || "(no name)";
+    return [p.first_name, p.last_name].filter(Boolean).join(" ") || "(no name)";
+  }
 
   async function patchInteraction(id: string, patch: Record<string, unknown>) {
     const res = await fetch(`/api/interactions/${id}`, {
@@ -108,18 +114,26 @@ export default function PeopleClient({
           {/* Mobile: card list */}
           <ul className="space-y-3 md:hidden">
             {filtered.map((p) => {
-              const name = [p.first_name, p.last_name].filter(Boolean).join(" ") || "(no name)";
+              const name = displayName(p);
               const tag = voteTag(p.relevant_votes, p.total_votes, raceLabel);
+              const profileHref = p.voter_ncid ? `/people/${p.voter_ncid}` : null;
               return (
-                <li key={p.voter_ncid} className="card p-4">
+                <li key={p.last_interaction_id} className="card p-4">
                   <div className="flex items-baseline justify-between gap-3">
-                    <Link href={`/people/${p.voter_ncid}`} className="font-medium text-base hover:text-[var(--color-primary)]">
-                      {name}
-                    </Link>
+                    {profileHref ? (
+                      <Link href={profileHref} className="font-medium text-base hover:text-[var(--color-primary)]">
+                        {name}
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-base">{name}</span>
+                    )}
                     <span className="shrink-0 text-xs text-[var(--color-ink-subtle)]">
                       {new Date(p.last_contact).toLocaleDateString()}
                     </span>
                   </div>
+                  {p.is_unmatched && (
+                    <span className="mt-1 inline-block chip chip-warning">no voter file match</span>
+                  )}
                   {(p.res_street_address || p.res_city) && (
                     <p className="mt-1 text-xs text-[var(--color-ink-subtle)]">
                       {p.res_street_address}{p.res_city ? ", " + p.res_city : ""}
@@ -140,7 +154,7 @@ export default function PeopleClient({
                         <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
                       ))}
                     </select>
-                    <span className={`chip ${tag.chipClass}`}>{tag.text}</span>
+                    {!p.is_unmatched && <span className={`chip ${tag.chipClass}`}>{tag.text}</span>}
                     {p.interaction_count > 1 && (
                       <span className="text-xs text-[var(--color-ink-subtle)]">{p.interaction_count} talks</span>
                     )}
@@ -149,9 +163,11 @@ export default function PeopleClient({
                     <button onClick={() => setEditing(p)} className="btn-secondary text-sm flex-1">
                       Edit
                     </button>
-                    <Link href={`/people/${p.voter_ncid}`} className="btn-ghost text-sm">
-                      Open
-                    </Link>
+                    {profileHref && (
+                      <Link href={profileHref} className="btn-ghost text-sm">
+                        Open
+                      </Link>
+                    )}
                   </div>
                 </li>
               );
@@ -175,16 +191,23 @@ export default function PeopleClient({
               </thead>
               <tbody>
                 {filtered.map((p) => {
-                  const name = [p.first_name, p.last_name].filter(Boolean).join(" ") || "(no name)";
+                  const name = displayName(p);
                   const tag = voteTag(p.relevant_votes, p.total_votes, raceLabel);
                   return (
-                    <tr key={p.voter_ncid} className="border-b border-[var(--color-border)] hover:bg-[var(--color-surface-muted)]">
+                    <tr key={p.last_interaction_id} className="border-b border-[var(--color-border)] hover:bg-[var(--color-surface-muted)]">
                       <td className="py-3 pr-3">
-                        <Link href={`/people/${p.voter_ncid}`} className="font-medium hover:text-[var(--color-primary)]">
-                          {name}
-                        </Link>
+                        {p.voter_ncid ? (
+                          <Link href={`/people/${p.voter_ncid}`} className="font-medium hover:text-[var(--color-primary)]">
+                            {name}
+                          </Link>
+                        ) : (
+                          <span className="font-medium">{name}</span>
+                        )}
                         {p.interaction_count > 1 && (
                           <span className="ml-2 text-xs text-[var(--color-ink-subtle)]">×{p.interaction_count}</span>
+                        )}
+                        {p.is_unmatched && (
+                          <span className="ml-2 chip chip-warning">unmatched</span>
                         )}
                       </td>
                       <td className="py-3 pr-3 text-xs text-[var(--color-ink-muted)]">
@@ -204,7 +227,11 @@ export default function PeopleClient({
                         </select>
                       </td>
                       <td className="py-3 pr-3 text-xs">
-                        <span className={`chip ${tag.chipClass}`}>{tag.text}</span>
+                        {p.is_unmatched ? (
+                          <span className="text-[var(--color-ink-subtle)]">—</span>
+                        ) : (
+                          <span className={`chip ${tag.chipClass}`}>{tag.text}</span>
+                        )}
                       </td>
                       <td className="py-3 pr-3 text-xs text-[var(--color-ink-muted)] hidden lg:table-cell max-w-[24rem]">
                         <span className="line-clamp-2">{p.last_notes ?? "—"}</span>
@@ -232,7 +259,9 @@ export default function PeopleClient({
           onClose={() => setEditing(null)}
           onSave={(updated) => {
             setRows((cur) =>
-              cur.map((r) => (r.voter_ncid === updated.voter_ncid ? { ...r, ...updated } : r)),
+              cur.map((r) =>
+                r.last_interaction_id === updated.last_interaction_id ? { ...r, ...updated } : r,
+              ),
             );
             setEditing(null);
           }}
@@ -251,7 +280,7 @@ function EditModal({
 }: {
   row: TalkedTo;
   onClose: () => void;
-  onSave: (updated: Partial<TalkedTo> & { voter_ncid: string }) => void;
+  onSave: (updated: Partial<TalkedTo> & { last_interaction_id: string }) => void;
   patchInteraction: (id: string, patch: Record<string, unknown>) => Promise<void>;
 }) {
   const [notes, setNotes] = useState(row.last_notes ?? "");
@@ -274,7 +303,7 @@ function EditModal({
         tags: tagsArr,
       });
       onSave({
-        voter_ncid: row.voter_ncid,
+        last_interaction_id: row.last_interaction_id,
         last_notes: notes,
         last_sentiment: sentiment || null,
         last_issues: issuesArr,
