@@ -1,20 +1,23 @@
--- Updated people_talked_to: returns relevant + total vote counts instead of priority.
+-- people_talked_to: returns relevant + total vote counts plus the latest
+-- interaction id so the table can edit it inline.
 drop function if exists people_talked_to(int);
 create or replace function people_talked_to(p_limit int default 500)
 returns table (
-    voter_ncid         text,
-    first_name         text,
-    last_name          text,
-    res_street_address text,
-    res_city           text,
-    party_cd           text,
-    last_sentiment     text,
-    last_issues        text[],
-    last_tags          text[],
-    last_contact       timestamptz,
-    interaction_count  int,
-    relevant_votes     int,
-    total_votes        int
+    voter_ncid           text,
+    first_name           text,
+    last_name            text,
+    res_street_address   text,
+    res_city             text,
+    party_cd             text,
+    last_interaction_id  uuid,
+    last_sentiment       text,
+    last_notes           text,
+    last_issues          text[],
+    last_tags            text[],
+    last_contact         timestamptz,
+    interaction_count    int,
+    relevant_votes       int,
+    total_votes          int
 )
 language sql
 stable
@@ -28,7 +31,8 @@ as $$
     ),
     latest as (
         select distinct on (i.voter_ncid)
-            i.voter_ncid, i.sentiment, i.issues, i.tags, i.created_at
+            i.voter_ncid, i.id as last_interaction_id, i.sentiment, i.notes,
+            i.issues, i.tags, i.created_at
         from interactions i
         join mine m on m.voter_ncid = i.voter_ncid
         where i.user_id = auth.uid()
@@ -41,7 +45,9 @@ as $$
         v.res_street_address,
         v.res_city,
         v.party_cd,
+        l.last_interaction_id,
         l.sentiment as last_sentiment,
+        l.notes     as last_notes,
         l.issues    as last_issues,
         l.tags      as last_tags,
         l.created_at as last_contact,

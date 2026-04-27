@@ -6,15 +6,19 @@ export const runtime = "nodejs";
 
 const SYSTEM = `You are JED, the assistant for a first-time local political candidate.
 
-The user will ask you a question. You have a snapshot of their current campaign data (candidate profile, weekly stats, recent conversations with voters, pending follow-ups, and to-dos). Answer from that data.
+You have access to the candidate's complete log of voter conversations: who they talked to, where, when, what was said, the inferred sentiment, and any issue / tag labels. You also see the candidate's profile and weekly aggregate stats.
+
+Answer the user's question from that data. Common queries:
+- "Who was it I talked to at the PTA meeting who cared about Oak Street traffic?"
+- "Which voters mentioned schools in the last week?"
+- "Which supportive contacts haven't I heard back from?"
 
 Rules:
 - Be direct. 2–4 sentences is usually enough.
+- When recalling a person, give name + the most identifying detail (where you talked, the issue) so the candidate recognizes them.
 - If the data doesn't support an answer, say so honestly. Don't invent voters, numbers, or issues.
-- Use specific names when they appear in the data ("Maria Hernandez is leaning supportive...").
-- If the user asks for a recommendation, give one concrete next action.
-- No filler ("Great question!", "Certainly!").
-- No markdown headers or bullet lists unless the question is clearly a list question ("list my supporters") — prefer flowing prose.`;
+- If the question is a list question, return a short bulleted list with one line per person.
+- No filler ("Great question!", "Certainly!"). No markdown headers.`;
 
 export async function POST(req: NextRequest) {
   const supabase = await getSupabaseServer();
@@ -25,18 +29,23 @@ export async function POST(req: NextRequest) {
   const question = (body.question as string | undefined)?.trim();
   if (!question) return Response.json({ error: "question required" }, { status: 400 });
 
-  const [{ data: candidate }, { data: stats }, { data: actions }, { data: interactions }, { data: todos }] =
-    await Promise.all([
-      supabase.from("candidates").select("candidate_name, office, jurisdiction, election_date, race_type, fundraising_goal").eq("user_id", user.id).maybeSingle(),
-      supabase.rpc("dashboard_stats"),
-      supabase.rpc("top_priority_actions", { p_limit: 5 }),
-      supabase
-        .from("interactions")
-        .select("captured_name, notes, created_at, sentiment, issues, tags, voters(first_name, last_name, res_city, party_cd)")
-        .order("created_at", { ascending: false })
-        .limit(15),
-      supabase.from("todos").select("title, status, due_date").eq("status", "pending").order("due_date"),
-    ]);
+  const [{ data: candidate }, { data: stats }, { data: interactions }] = await Promise.all([
+    supabase
+      .from("candidates")
+      .select("candidate_name, office, jurisdiction, election_date, race_type")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase.rpc("dashboard_stats"),
+    // Pull every conversation the candidate has logged. For a first-time
+    // local campaign this is hundreds, not thousands.
+    supabase
+      .from("interactions")
+      .select(
+        "captured_name, captured_location, notes, created_at, sentiment, issues, tags, voters(first_name, last_name, res_street_address, res_city, party_cd)",
+      )
+      .order("created_at", { ascending: false })
+      .limit(500),
+  ]);
 
   const daysLeft = candidate?.election_date
     ? Math.round(
@@ -44,13 +53,42 @@ export async function POST(req: NextRequest) {
       )
     : null;
 
+  type Row = {
+    captured_name: string;
+    captured_location: string | null;
+    notes: string | null;
+    created_at: string;
+    sentiment: string | null;
+    issues: string[] | null;
+    tags: string[] | null;
+    voters: {
+      first_name: string | null;
+      last_name: string | null;
+      res_street_address: string | null;
+      res_city: string | null;
+      party_cd: string | null;
+    } | null;
+  };
+  const conversations = ((interactions as Row[] | null) ?? []).map((r) => ({
+    name:
+      [r.voters?.first_name, r.voters?.last_name].filter(Boolean).join(" ") ||
+      r.captured_name,
+    where: r.captured_location ?? null,
+    address: r.voters?.res_street_address ?? null,
+    city: r.voters?.res_city ?? null,
+    party: r.voters?.party_cd ?? null,
+    date: r.created_at.slice(0, 10),
+    sentiment: r.sentiment ?? null,
+    issues: r.issues ?? [],
+    tags: r.tags ?? [],
+    notes: r.notes ?? null,
+  }));
+
   const context = JSON.stringify({
     candidate,
     election_days_left: daysLeft,
     stats,
-    pending_follow_ups: actions,
-    recent_conversations: interactions,
-    open_todos: todos,
+    conversations,
   });
 
   try {

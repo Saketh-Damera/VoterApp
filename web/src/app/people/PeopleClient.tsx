@@ -15,28 +15,61 @@ export default function PeopleClient({
   initial: TalkedTo[];
   raceType: string | null;
 }) {
+  const [rows, setRows] = useState<TalkedTo[]>(initial);
   const [q, setQ] = useState("");
-  const [party, setParty] = useState<string>("");
-  const [sentiment, setSentiment] = useState<string>("");
+  const [party, setParty] = useState("");
+  const [sentiment, setSentiment] = useState("");
+  const [editing, setEditing] = useState<TalkedTo | null>(null);
   const raceLabel = raceLabelFor(raceType);
 
-  const parties = useMemo(() => {
-    return Array.from(new Set(initial.map((p) => p.party_cd).filter(Boolean))) as string[];
-  }, [initial]);
+  const parties = useMemo(
+    () => Array.from(new Set(rows.map((p) => p.party_cd).filter(Boolean))) as string[],
+    [rows],
+  );
 
   const filtered = useMemo(() => {
     const term = q.toLowerCase().trim();
-    return initial.filter((p) => {
+    return rows.filter((p) => {
       if (party && p.party_cd !== party) return false;
       if (sentiment && p.last_sentiment !== sentiment) return false;
       if (!term) return true;
-      const hay = [p.first_name, p.last_name, p.res_street_address, p.res_city, ...(p.last_issues ?? []), ...(p.last_tags ?? [])]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+      const hay = [
+        p.first_name, p.last_name, p.res_street_address, p.res_city,
+        p.last_notes,
+        ...(p.last_issues ?? []), ...(p.last_tags ?? []),
+      ].filter(Boolean).join(" ").toLowerCase();
       return hay.includes(term);
     });
-  }, [initial, q, party, sentiment]);
+  }, [rows, q, party, sentiment]);
+
+  async function patchInteraction(id: string, patch: Record<string, unknown>) {
+    const res = await fetch(`/api/interactions/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      throw new Error(json.error ?? "save failed");
+    }
+  }
+
+  async function changeSentiment(row: TalkedTo, value: string) {
+    const next = value || null;
+    setRows((cur) =>
+      cur.map((r) => (r.voter_ncid === row.voter_ncid ? { ...r, last_sentiment: next } : r)),
+    );
+    try {
+      await patchInteraction(row.last_interaction_id, { sentiment: next });
+    } catch {
+      // revert
+      setRows((cur) =>
+        cur.map((r) =>
+          r.voter_ncid === row.voter_ncid ? { ...r, last_sentiment: row.last_sentiment } : r,
+        ),
+      );
+    }
+  }
 
   return (
     <div>
@@ -46,7 +79,7 @@ export default function PeopleClient({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="name, address, issue, tag..."
+            placeholder="name, address, notes, issue, tag..."
             className="input"
           />
         </label>
@@ -68,7 +101,7 @@ export default function PeopleClient({
 
       {filtered.length === 0 ? (
         <p className="text-sm text-[var(--color-ink-subtle)]">
-          {initial.length === 0 ? "No conversations logged yet." : "No matches."}
+          {rows.length === 0 ? "No conversations logged yet." : "No matches."}
         </p>
       ) : (
         <div className="overflow-x-auto">
@@ -80,7 +113,9 @@ export default function PeopleClient({
                 <th className="py-2 pr-3 font-semibold">Party</th>
                 <th className="py-2 pr-3 font-semibold">Sentiment</th>
                 <th className="py-2 pr-3 font-semibold">Turnout</th>
-                <th className="py-2 font-semibold hidden sm:table-cell">Last</th>
+                <th className="py-2 pr-3 font-semibold hidden lg:table-cell">Notes</th>
+                <th className="py-2 pr-3 font-semibold hidden sm:table-cell">Last</th>
+                <th className="py-2 font-semibold"></th>
               </tr>
             </thead>
             <tbody>
@@ -102,17 +137,30 @@ export default function PeopleClient({
                     </td>
                     <td className="py-3 pr-3 text-xs">{p.party_cd ?? "—"}</td>
                     <td className="py-3 pr-3 text-xs">
-                      {p.last_sentiment ? (
-                        <span className={`chip ${sentimentChip(p.last_sentiment)}`}>
-                          {p.last_sentiment.replace(/_/g, " ")}
-                        </span>
-                      ) : "—"}
+                      <select
+                        value={p.last_sentiment ?? ""}
+                        onChange={(e) => changeSentiment(p, e.target.value)}
+                        className={`input !px-2 !py-1 text-xs w-full max-w-[10rem] ${p.last_sentiment ? sentimentChip(p.last_sentiment) : ""}`}
+                      >
+                        <option value="">—</option>
+                        {SENTIMENTS.map((s) => (
+                          <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+                        ))}
+                      </select>
                     </td>
                     <td className="py-3 pr-3 text-xs">
                       <span className={`chip ${tag.chipClass}`}>{tag.text}</span>
                     </td>
-                    <td className="py-3 text-xs text-[var(--color-ink-subtle)] hidden sm:table-cell">
+                    <td className="py-3 pr-3 text-xs text-[var(--color-ink-muted)] hidden lg:table-cell max-w-[24rem]">
+                      <span className="line-clamp-2">{p.last_notes ?? "—"}</span>
+                    </td>
+                    <td className="py-3 pr-3 text-xs text-[var(--color-ink-subtle)] hidden sm:table-cell whitespace-nowrap">
                       {new Date(p.last_contact).toLocaleDateString()}
+                    </td>
+                    <td className="py-3">
+                      <button onClick={() => setEditing(p)} className="btn-ghost text-xs">
+                        Edit
+                      </button>
                     </td>
                   </tr>
                 );
@@ -121,6 +169,130 @@ export default function PeopleClient({
           </table>
         </div>
       )}
+
+      {editing && (
+        <EditModal
+          row={editing}
+          onClose={() => setEditing(null)}
+          onSave={(updated) => {
+            setRows((cur) =>
+              cur.map((r) => (r.voter_ncid === updated.voter_ncid ? { ...r, ...updated } : r)),
+            );
+            setEditing(null);
+          }}
+          patchInteraction={patchInteraction}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditModal({
+  row,
+  onClose,
+  onSave,
+  patchInteraction,
+}: {
+  row: TalkedTo;
+  onClose: () => void;
+  onSave: (updated: Partial<TalkedTo> & { voter_ncid: string }) => void;
+  patchInteraction: (id: string, patch: Record<string, unknown>) => Promise<void>;
+}) {
+  const [notes, setNotes] = useState(row.last_notes ?? "");
+  const [sentiment, setSentiment] = useState(row.last_sentiment ?? "");
+  const [issues, setIssues] = useState((row.last_issues ?? []).join(", "));
+  const [tags, setTags] = useState((row.last_tags ?? []).join(", "));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setErr(null);
+    try {
+      const issuesArr = issues.split(",").map((s) => s.trim()).filter(Boolean);
+      const tagsArr = tags.split(",").map((s) => s.trim()).filter(Boolean);
+      await patchInteraction(row.last_interaction_id, {
+        notes,
+        sentiment: sentiment || null,
+        issues: issuesArr,
+        tags: tagsArr,
+      });
+      onSave({
+        voter_ncid: row.voter_ncid,
+        last_notes: notes,
+        last_sentiment: sentiment || null,
+        last_issues: issuesArr,
+        last_tags: tagsArr,
+      });
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const name = [row.first_name, row.last_name].filter(Boolean).join(" ") || "(no name)";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="card w-full max-w-lg p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-baseline justify-between">
+          <h3 className="text-base font-semibold">{name}</h3>
+          <button onClick={onClose} className="btn-ghost text-xs">Close</button>
+        </div>
+        <div className="space-y-3">
+          <label className="block">
+            <span className="section-label">Sentiment</span>
+            <select
+              value={sentiment}
+              onChange={(e) => setSentiment(e.target.value)}
+              className="input mt-1"
+            >
+              <option value="">—</option>
+              {SENTIMENTS.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="section-label">Notes</span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+              className="input mt-1"
+            />
+          </label>
+          <label className="block">
+            <span className="section-label">Issues</span>
+            <input
+              value={issues}
+              onChange={(e) => setIssues(e.target.value)}
+              className="input mt-1"
+              placeholder="comma-separated, e.g. property-taxes, rezoning"
+            />
+          </label>
+          <label className="block">
+            <span className="section-label">Tags</span>
+            <input
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              className="input mt-1"
+              placeholder="comma-separated, e.g. teacher, parent"
+            />
+          </label>
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <button onClick={save} disabled={saving} className="btn-primary">
+            {saving ? "Saving..." : "Save"}
+          </button>
+          {err && <span className="text-sm text-[var(--color-danger)]">{err}</span>}
+        </div>
+      </div>
     </div>
   );
 }

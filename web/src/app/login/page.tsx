@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import JedLogo from "@/components/JedLogo";
 
@@ -9,12 +9,19 @@ type Result = "ok" | "confirm_email" | { error: string };
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = getSupabaseBrowser();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
+
+  // Surface errors that bounced back from /auth/callback
+  useEffect(() => {
+    const e = searchParams.get("auth_error");
+    if (e) setResult({ error: friendlyAuthError(e, "signin") });
+  }, [searchParams]);
 
   async function startDemo() {
     if (loading) return;

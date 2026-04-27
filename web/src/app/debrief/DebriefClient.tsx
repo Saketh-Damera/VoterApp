@@ -27,16 +27,29 @@ export default function DebriefClient() {
   const [err, setErr] = useState<string | null>(null);
   const [voiceNote, setVoiceNote] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  type Candidate = {
+    ncid: string;
+    first_name: string | null;
+    middle_name: string | null;
+    last_name: string | null;
+    res_street_address: string | null;
+    res_city: string | null;
+    confidence: number;
+  };
   const [result, setResult] = useState<null | {
+    interaction_id: string;
     voter_ncid: string | null;
     todos_created: number;
     extract: Extract;
+    match_candidates: Candidate[];
   }>(null);
+  const [confirming, setConfirming] = useState(false);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -119,23 +132,76 @@ export default function DebriefClient() {
       const ext = mimeType.includes("mp4") ? "mp4" : mimeType.includes("ogg") ? "ogg" : "webm";
       const form = new FormData();
       form.append("audio", blob, `debrief.${ext}`);
-      const res = await fetch("/api/transcribe", { method: "POST", body: form });
-      const json = await res.json();
-      if (!res.ok) {
-        setErr(json.error ?? "transcription failed");
-        return;
-      }
-      const text = (json.text as string).trim();
-      if (!text) {
-        setVoiceNote("No speech recognized. Try again or type below.");
-        return;
-      }
-      setTranscript((t) => (t ? t + " " : "") + text);
+      await transcribeFile(form);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
       setTranscribing(false);
     }
+  }
+
+  async function transcribeFile(form: FormData) {
+    const res = await fetch("/api/transcribe", { method: "POST", body: form });
+    const json = await res.json();
+    if (!res.ok) {
+      setErr(json.error ?? "transcription failed");
+      return;
+    }
+    const text = (json.text as string).trim();
+    if (!text) {
+      setVoiceNote("No speech recognized.");
+      return;
+    }
+    setTranscript((t) => (t ? t + " " : "") + text);
+  }
+
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = ""; // allow re-uploading the same file
+    if (!f) return;
+    if (f.size > 25 * 1024 * 1024) {
+      setErr("Audio file too large (max 25 MB).");
+      return;
+    }
+    setErr(null);
+    setVoiceNote(null);
+    setResult(null);
+    setTranscribing(true);
+    try {
+      const form = new FormData();
+      form.append("audio", f, f.name);
+      await transcribeFile(form);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setTranscribing(false);
+    }
+  }
+
+  async function confirmMatch(ncid: string) {
+    if (!result) return;
+    setConfirming(true);
+    try {
+      const res = await fetch(`/api/interactions/${result.interaction_id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ voter_ncid: ncid }),
+      });
+      if (res.ok) {
+        setResult({ ...result, voter_ncid: ncid, match_candidates: [] });
+        router.refresh();
+      } else {
+        const json = await res.json();
+        setErr(json.error ?? "couldn't update match");
+      }
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  function dismissCandidates() {
+    if (!result) return;
+    setResult({ ...result, match_candidates: [] });
   }
 
   async function process() {
@@ -202,6 +268,22 @@ export default function DebriefClient() {
             </button>
           )}
 
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg,.mp4"
+            onChange={onPickFile}
+            className="hidden"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={processing || recording || transcribing}
+            className="btn-secondary"
+            title="Upload an audio file (m4a, mp3, wav, webm, mp4)"
+          >
+            Upload recording
+          </button>
+
           <button
             onClick={process}
             disabled={processing || recording || transcribing || transcript.trim().length < 10}
@@ -250,6 +332,62 @@ export default function DebriefClient() {
               <span className="chip chip-warning">unmatched</span>
             )}
           </div>
+
+          {/* Did-you-mean: show when there's a candidate above 0.4 confidence
+              that we didn't auto-pick (top match was below 0.85 OR multiple
+              close candidates), or when nothing was matched at all. */}
+          {result.match_candidates.length > 0 &&
+            (!result.voter_ncid ||
+              result.match_candidates[0].confidence < 0.85) && (
+              <div className="mb-3 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-muted)] p-3">
+                <div className="mb-2 text-sm font-medium">
+                  Is this who you talked to?
+                </div>
+                <ul className="space-y-1">
+                  {result.match_candidates.slice(0, 5).map((c) => {
+                    const name = [c.first_name, c.middle_name, c.last_name]
+                      .filter(Boolean)
+                      .join(" ");
+                    const isCurrent = c.ncid === result.voter_ncid;
+                    return (
+                      <li
+                        key={c.ncid}
+                        className="flex items-baseline justify-between gap-2 rounded-md bg-[var(--color-surface)] px-2 py-1.5 text-sm"
+                      >
+                        <span>
+                          <span className="font-medium">{name}</span>
+                          <span className="ml-2 text-xs text-[var(--color-ink-subtle)]">
+                            {c.res_street_address}
+                            {c.res_city ? ", " + c.res_city : ""}
+                          </span>
+                          <span className="ml-2 font-mono text-xs text-[var(--color-ink-subtle)]">
+                            {Math.round(c.confidence * 100)}%
+                          </span>
+                          {isCurrent && (
+                            <span className="ml-2 chip chip-success">currently linked</span>
+                          )}
+                        </span>
+                        <button
+                          onClick={() => confirmMatch(c.ncid)}
+                          disabled={confirming || isCurrent}
+                          className="btn-secondary text-xs"
+                        >
+                          {isCurrent ? "Yes" : "Use this one"}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <button
+                  onClick={dismissCandidates}
+                  className="btn-ghost mt-2 text-xs"
+                  disabled={confirming}
+                >
+                  None of these
+                </button>
+              </div>
+            )}
+
           <dl className="space-y-1 text-sm">
             <Row k="Name heard" v={result.extract.captured_name || "—"} />
             <Row k="Sentiment" v={result.extract.sentiment.replace(/_/g, " ")} />
