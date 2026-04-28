@@ -77,6 +77,15 @@ export default function NewPersonPage() {
       setErr(error?.message ?? "Save failed");
       return;
     }
+    // Mirror to interaction_participants so /people sees this row.
+    await supabase.from("interaction_participants").insert({
+      interaction_id: inserted.id,
+      voter_ncid: picked?.ncid ?? null,
+      captured_name: name.trim() || "(no name)",
+      match_confidence: picked?.confidence ?? null,
+      notes: notes.trim() || null,
+      is_primary: true,
+    });
     if (notes.trim().length >= 4) {
       try {
         await fetch(`/api/interactions/${inserted.id}/enrich`, { method: "POST" });

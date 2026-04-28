@@ -12,11 +12,13 @@ export type TalkedTo = {
   res_street_address: string | null;
   res_city: string | null;
   party_cd: string | null;
+  last_participant_id: string;
   last_interaction_id: string;
   last_sentiment: string | null;
   last_notes: string | null;
   last_issues: string[] | null;
   last_tags: string[] | null;
+  last_relationship: string | null;
   last_contact: string;
   interaction_count: number;
   relevant_votes: number | null;

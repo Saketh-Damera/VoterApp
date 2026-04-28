@@ -18,6 +18,7 @@ const COLUMNS: { key: string; header: string }[] = [
   { key: "tags",      header: "Tags" },
   { key: "notes",     header: "Notes" },
   { key: "captured",  header: "Captured name" },
+  { key: "relation",  header: "Role (lead / spouse / etc.)" },
   { key: "matched",   header: "Voter file (matched / unmatched)" },
 ];
 

@@ -2,9 +2,11 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { TalkedTo, ListMeta } from "./page";
 import { sentimentChip } from "@/lib/ui/chips";
 import { voteTag, raceLabelFor } from "@/lib/ui/voteTag";
+import LinkParticipantModal from "./LinkParticipantModal";
 
 const SENTIMENTS = ["supportive", "leaning_supportive", "undecided", "leaning_opposed", "opposed", "unknown"];
 
@@ -42,6 +44,8 @@ export default function PeopleClient({
   const [listId, setListId] = useState("");
   const [city, setCity] = useState("");
   const [editing, setEditing] = useState<TalkedTo | null>(null);
+  const [linking, setLinking] = useState<TalkedTo | null>(null);
+  const router = useRouter();
   const raceLabel = raceLabelFor(raceType);
 
   const parties = useMemo(
@@ -79,8 +83,8 @@ export default function PeopleClient({
     return [p.first_name, p.last_name].filter(Boolean).join(" ") || "(no name)";
   }
 
-  async function patchInteraction(id: string, patch: Record<string, unknown>) {
-    const res = await fetch(`/api/interactions/${id}`, {
+  async function patchParticipant(id: string, patch: Record<string, unknown>) {
+    const res = await fetch(`/api/participants/${id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(patch),
@@ -94,15 +98,16 @@ export default function PeopleClient({
   async function changeSentiment(row: TalkedTo, value: string) {
     const next = value || null;
     setRows((cur) =>
-      cur.map((r) => (r.voter_ncid === row.voter_ncid ? { ...r, last_sentiment: next } : r)),
+      cur.map((r) =>
+        r.last_participant_id === row.last_participant_id ? { ...r, last_sentiment: next } : r,
+      ),
     );
     try {
-      await patchInteraction(row.last_interaction_id, { sentiment: next });
+      await patchParticipant(row.last_participant_id, { sentiment: next });
     } catch {
-      // revert
       setRows((cur) =>
         cur.map((r) =>
-          r.voter_ncid === row.voter_ncid ? { ...r, last_sentiment: row.last_sentiment } : r,
+          r.last_participant_id === row.last_participant_id ? { ...r, last_sentiment: row.last_sentiment } : r,
         ),
       );
     }
@@ -171,7 +176,7 @@ export default function PeopleClient({
               const tag = voteTag(p.relevant_votes, p.total_votes, raceLabel);
               const profileHref = p.voter_ncid ? `/people/${p.voter_ncid}` : null;
               return (
-                <li key={p.last_interaction_id} className="card p-4">
+                <li key={p.last_participant_id} className="card p-4">
                   <div className="flex items-baseline justify-between gap-3">
                     {profileHref ? (
                       <Link href={profileHref} className="font-medium text-base hover:text-[var(--color-primary)]">
@@ -216,6 +221,11 @@ export default function PeopleClient({
                     <button onClick={() => setEditing(p)} className="btn-secondary text-sm flex-1">
                       Edit
                     </button>
+                    {p.is_unmatched && (
+                      <button onClick={() => setLinking(p)} className="btn-secondary text-sm flex-1">
+                        Link to voter
+                      </button>
+                    )}
                     {profileHref && (
                       <Link href={profileHref} className="btn-ghost text-sm">
                         Open
@@ -247,7 +257,7 @@ export default function PeopleClient({
                   const name = displayName(p);
                   const tag = voteTag(p.relevant_votes, p.total_votes, raceLabel);
                   return (
-                    <tr key={p.last_interaction_id} className="border-b border-[var(--color-border)] hover:bg-[var(--color-surface-muted)]">
+                    <tr key={p.last_participant_id} className="border-b border-[var(--color-border)] hover:bg-[var(--color-surface-muted)]">
                       <td className="py-3 pr-3">
                         {p.voter_ncid ? (
                           <Link href={`/people/${p.voter_ncid}`} className="font-medium hover:text-[var(--color-primary)]">
@@ -293,9 +303,16 @@ export default function PeopleClient({
                         {new Date(p.last_contact).toLocaleDateString()}
                       </td>
                       <td className="py-3">
-                        <button onClick={() => setEditing(p)} className="btn-ghost text-xs">
-                          Edit
-                        </button>
+                        <div className="flex flex-col items-end gap-1">
+                          <button onClick={() => setEditing(p)} className="btn-ghost text-xs">
+                            Edit
+                          </button>
+                          {p.is_unmatched && (
+                            <button onClick={() => setLinking(p)} className="btn-ghost text-xs text-[var(--color-primary)]">
+                              Link
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -313,12 +330,23 @@ export default function PeopleClient({
           onSave={(updated) => {
             setRows((cur) =>
               cur.map((r) =>
-                r.last_interaction_id === updated.last_interaction_id ? { ...r, ...updated } : r,
+                r.last_participant_id === updated.last_participant_id ? { ...r, ...updated } : r,
               ),
             );
             setEditing(null);
           }}
-          patchInteraction={patchInteraction}
+          patchParticipant={patchParticipant}
+        />
+      )}
+
+      {linking && (
+        <LinkParticipantModal
+          row={linking}
+          onClose={() => setLinking(null)}
+          onLinked={() => {
+            setLinking(null);
+            router.refresh();
+          }}
         />
       )}
     </div>
@@ -329,12 +357,12 @@ function EditModal({
   row,
   onClose,
   onSave,
-  patchInteraction,
+  patchParticipant,
 }: {
   row: TalkedTo;
   onClose: () => void;
-  onSave: (updated: Partial<TalkedTo> & { last_interaction_id: string }) => void;
-  patchInteraction: (id: string, patch: Record<string, unknown>) => Promise<void>;
+  onSave: (updated: Partial<TalkedTo> & { last_participant_id: string }) => void;
+  patchParticipant: (id: string, patch: Record<string, unknown>) => Promise<void>;
 }) {
   const [notes, setNotes] = useState(row.last_notes ?? "");
   const [sentiment, setSentiment] = useState(row.last_sentiment ?? "");
@@ -349,14 +377,14 @@ function EditModal({
     try {
       const issuesArr = issues.split(",").map((s) => s.trim()).filter(Boolean);
       const tagsArr = tags.split(",").map((s) => s.trim()).filter(Boolean);
-      await patchInteraction(row.last_interaction_id, {
+      await patchParticipant(row.last_participant_id, {
         notes,
         sentiment: sentiment || null,
         issues: issuesArr,
         tags: tagsArr,
       });
       onSave({
-        last_interaction_id: row.last_interaction_id,
+        last_participant_id: row.last_participant_id,
         last_notes: notes,
         last_sentiment: sentiment || null,
         last_issues: issuesArr,

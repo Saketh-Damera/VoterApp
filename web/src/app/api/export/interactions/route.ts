@@ -6,14 +6,19 @@ export const dynamic = "force-dynamic";
 
 type Row = {
   id: string;
-  captured_name: string | null;
-  captured_location: string | null;
-  notes: string | null;
-  created_at: string;
+  captured_name: string;
+  voter_ncid: string | null;
   sentiment: string | null;
   issues: string[] | null;
   tags: string[] | null;
-  voter_ncid: string | null;
+  notes: string | null;
+  relationship: string | null;
+  is_primary: boolean;
+  interactions: {
+    created_at: string;
+    captured_location: string | null;
+    notes: string | null;
+  } | null;
   voters: {
     first_name: string | null;
     last_name: string | null;
@@ -36,7 +41,7 @@ type ColumnDef = {
 };
 
 const ALL_COLUMNS: ColumnDef[] = [
-  { key: "date",      header: "Date",          width: 18, value: (r) => new Date(r.created_at) },
+  { key: "date",      header: "Date",          width: 18, value: (r) => r.interactions?.created_at ? new Date(r.interactions.created_at) : "" },
   { key: "first",     header: "First name",    width: 16, value: (r, m) => r.voters?.first_name ?? m },
   { key: "last",      header: "Last name",     width: 18, value: (r, m) => r.voters?.last_name ?? m },
   { key: "address",   header: "Address",       width: 32, value: (r, m) => r.voters?.res_street_address ?? m },
@@ -45,13 +50,14 @@ const ALL_COLUMNS: ColumnDef[] = [
   { key: "party",     header: "Party",         width: 8,  value: (r, m) => r.voters?.party_cd ?? m },
   { key: "byear",     header: "Birth year",    width: 10, value: (r, m) => r.voters?.birth_year != null ? String(r.voters.birth_year) : m },
   { key: "precinct",  header: "Precinct",      width: 16, value: (r, m) => r.voters?.precinct_desc ?? m },
-  { key: "context",   header: "Context",       width: 22, value: (r, m) => r.captured_location ?? m },
+  { key: "context",   header: "Context",       width: 22, value: (r, m) => r.interactions?.captured_location ?? m },
   { key: "sentiment", header: "Sentiment",     width: 18, value: (r, m) => r.sentiment ?? m },
   { key: "issues",    header: "Issues",        width: 32, value: (r) => (r.issues ?? []).join(", ") },
   { key: "tags",      header: "Tags",          width: 32, value: (r) => (r.tags ?? []).join(", ") },
-  { key: "notes",     header: "Notes",         width: 60, value: (r, m) => r.notes ?? m },
+  { key: "notes",     header: "Notes",         width: 60, value: (r, m) => r.notes ?? r.interactions?.notes ?? m },
   { key: "captured",  header: "Captured name", width: 22, value: (r) => r.captured_name ?? "" },
-  { key: "matched",   header: "Voter file",    width: 22, value: (r) => r.voter_ncid ? "matched" : "unmatched — no previous voter or no data found" },
+  { key: "relation",  header: "Role",          width: 14, value: (r) => r.is_primary ? "lead" : (r.relationship ?? "") },
+  { key: "matched",   header: "Voter file",    width: 28, value: (r) => r.voter_ncid ? "matched" : "unmatched — no previous voter or no data found" },
 ];
 
 const DEFAULT_KEYS = ALL_COLUMNS.map((c) => c.key);
@@ -72,15 +78,20 @@ export async function GET(req: NextRequest) {
   }
 
   const { data, error } = await supabase
-    .from("interactions")
+    .from("interaction_participants")
     .select(
-      "id, captured_name, captured_location, notes, created_at, sentiment, issues, tags, voter_ncid, voters(first_name, last_name, res_street_address, res_city, res_zip, party_cd, birth_year, precinct_desc)",
+      "id, captured_name, voter_ncid, sentiment, issues, tags, notes, relationship, is_primary, interactions(created_at, captured_location, notes), voters(first_name, last_name, res_street_address, res_city, res_zip, party_cd, birth_year, precinct_desc)",
     )
-    .order("created_at", { ascending: false })
     .returns<Row[]>();
   if (error) return Response.json({ error: error.message }, { status: 500 });
 
-  const rows = (data ?? []).filter((r) => includeUnmatched || r.voter_ncid !== null);
+  const rows = (data ?? [])
+    .filter((r) => includeUnmatched || r.voter_ncid !== null)
+    .sort((a, b) => {
+      const aT = a.interactions?.created_at ?? "";
+      const bT = b.interactions?.created_at ?? "";
+      return bT.localeCompare(aT);
+    });
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "JED";

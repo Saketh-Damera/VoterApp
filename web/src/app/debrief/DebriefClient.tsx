@@ -4,18 +4,46 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
-type Extract = {
-  captured_name: string;
+type ParticipantOut = {
+  name: string;
+  relationship: string;
   sentiment: string;
   issues: string[];
   tags: string[];
+  notes: string;
+};
+
+type Extract = {
+  participants: ParticipantOut[];
+  captured_location: string | null;
+  cleaned_notes: string;
   follow_up: { days_until: number; action: string } | null;
+  wants_sign: boolean;
+  wants_to_volunteer: boolean;
   mentioned_people: Array<{
     name: string;
     relationship: string;
     context: string;
     should_contact: boolean;
   }>;
+};
+
+type Candidate = {
+  ncid: string;
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
+  res_street_address: string | null;
+  res_city: string | null;
+  confidence: number;
+};
+
+type ParticipantResult = {
+  participant_id: string;
+  captured_name: string;
+  voter_ncid: string | null;
+  match_confidence: number | null;
+  candidates: Candidate[];
 };
 
 export default function DebriefClient() {
@@ -28,23 +56,12 @@ export default function DebriefClient() {
   const [err, setErr] = useState<string | null>(null);
   const [voiceNote, setVoiceNote] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
-  type Candidate = {
-    ncid: string;
-    first_name: string | null;
-    middle_name: string | null;
-    last_name: string | null;
-    res_street_address: string | null;
-    res_city: string | null;
-    confidence: number;
-  };
   const [result, setResult] = useState<null | {
     interaction_id: string;
-    voter_ncid: string | null;
-    todos_created: number;
     extract: Extract;
-    match_candidates: Candidate[];
+    participants: ParticipantResult[];
   }>(null);
-  const [confirming, setConfirming] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [addedMentions, setAddedMentions] = useState<Set<string>>(new Set());
   const [addingMention, setAddingMention] = useState<string | null>(null);
   const supabase = getSupabaseBrowser();
@@ -182,30 +199,42 @@ export default function DebriefClient() {
     }
   }
 
-  async function confirmMatch(ncid: string) {
+  async function confirmMatch(participantId: string, ncid: string) {
     if (!result) return;
-    setConfirming(true);
+    setConfirmingId(participantId);
     try {
-      const res = await fetch(`/api/interactions/${result.interaction_id}`, {
+      const res = await fetch(`/api/participants/${participantId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ voter_ncid: ncid }),
       });
       if (res.ok) {
-        setResult({ ...result, voter_ncid: ncid, match_candidates: [] });
+        setResult({
+          ...result,
+          participants: result.participants.map((p) =>
+            p.participant_id === participantId
+              ? { ...p, voter_ncid: ncid, candidates: [] }
+              : p,
+          ),
+        });
         router.refresh();
       } else {
         const json = await res.json();
         setErr(json.error ?? "couldn't update match");
       }
     } finally {
-      setConfirming(false);
+      setConfirmingId(null);
     }
   }
 
-  function dismissCandidates() {
+  function dismissCandidates(participantId: string) {
     if (!result) return;
-    setResult({ ...result, match_candidates: [] });
+    setResult({
+      ...result,
+      participants: result.participants.map((p) =>
+        p.participant_id === participantId ? { ...p, candidates: [] } : p,
+      ),
+    });
   }
 
   async function addMentionAsContact(mention: {
@@ -217,8 +246,9 @@ export default function DebriefClient() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const referredBy = result?.extract.captured_name
-        ? `Referred by ${result.extract.captured_name}`
+      const lead = result?.participants[0];
+      const referredBy = lead?.captured_name
+        ? `Referred by ${lead.captured_name}`
         : "Mentioned in a debrief";
       await supabase.from("interactions").insert({
         user_id: user.id,
@@ -355,84 +385,115 @@ export default function DebriefClient() {
 
       {result && (
         <div className="card p-4">
-          <div className="mb-2 flex items-baseline justify-between">
-            <div className="section-label">Saved</div>
-            {result.voter_ncid ? (
-              <a href={`/people/${result.voter_ncid}`} className="btn-ghost text-xs">
-                Open profile
-              </a>
-            ) : (
-              <span className="chip chip-warning">unmatched</span>
-            )}
-          </div>
+          <div className="mb-3 section-label">Saved</div>
 
-          {/* Did-you-mean: show when there's a candidate above 0.4 confidence
-              that we didn't auto-pick (top match was below 0.85 OR multiple
-              close candidates), or when nothing was matched at all. */}
-          {result.match_candidates.length > 0 &&
-            (!result.voter_ncid ||
-              result.match_candidates[0].confidence < 0.85) && (
-              <div className="mb-3 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-muted)] p-3">
-                <div className="mb-2 text-sm font-medium">
-                  Is this who you talked to?
+          {result.participants.map((p, idx) => {
+            const extractP = result.extract.participants[idx];
+            const showSuggest =
+              p.candidates.length > 0 &&
+              (!p.voter_ncid || p.candidates[0].confidence < 0.85);
+            return (
+              <section
+                key={p.participant_id}
+                className={
+                  idx > 0
+                    ? "mt-4 border-t border-[var(--color-border)] pt-4"
+                    : ""
+                }
+              >
+                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <span className="text-base font-semibold">{p.captured_name}</span>
+                    {extractP?.relationship && (
+                      <span className="text-xs text-[var(--color-ink-subtle)]">
+                        ({extractP.relationship})
+                      </span>
+                    )}
+                    {idx === 0 && result.participants.length > 1 && (
+                      <span className="chip chip-primary">lead</span>
+                    )}
+                  </div>
+                  {p.voter_ncid ? (
+                    <a href={`/people/${p.voter_ncid}`} className="btn-ghost text-xs">
+                      Open profile
+                    </a>
+                  ) : (
+                    <span className="chip chip-warning">unmatched</span>
+                  )}
                 </div>
-                <ul className="space-y-1">
-                  {result.match_candidates.slice(0, 5).map((c) => {
-                    const name = [c.first_name, c.middle_name, c.last_name]
-                      .filter(Boolean)
-                      .join(" ");
-                    const isCurrent = c.ncid === result.voter_ncid;
-                    return (
-                      <li
-                        key={c.ncid}
-                        className="flex items-baseline justify-between gap-2 rounded-md bg-[var(--color-surface)] px-2 py-1.5 text-sm"
-                      >
-                        <span>
-                          <span className="font-medium">{name}</span>
-                          <span className="ml-2 text-xs text-[var(--color-ink-subtle)]">
-                            {c.res_street_address}
-                            {c.res_city ? ", " + c.res_city : ""}
-                          </span>
-                          <span className="ml-2 font-mono text-xs text-[var(--color-ink-subtle)]">
-                            {Math.round(c.confidence * 100)}%
-                          </span>
-                          {isCurrent && (
-                            <span className="ml-2 chip chip-success">currently linked</span>
-                          )}
-                        </span>
-                        <button
-                          onClick={() => confirmMatch(c.ncid)}
-                          disabled={confirming || isCurrent}
-                          className="btn-secondary text-xs"
-                        >
-                          {isCurrent ? "Yes" : "Use this one"}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-                <button
-                  onClick={dismissCandidates}
-                  className="btn-ghost mt-2 text-xs"
-                  disabled={confirming}
-                >
-                  None of these
-                </button>
-              </div>
-            )}
 
-          <dl className="space-y-1 text-sm">
-            <Row k="Name heard" v={result.extract.captured_name || "—"} />
-            <Row k="Sentiment" v={result.extract.sentiment.replace(/_/g, " ")} />
-            <Row k="Issues" v={result.extract.issues.join(", ") || "—"} />
-            <Row k="Tags" v={result.extract.tags.join(", ") || "—"} />
-            {result.extract.follow_up && (
+                {showSuggest && (
+                  <div className="mb-3 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-muted)] p-3">
+                    <div className="mb-2 text-sm font-medium">
+                      Is this who {p.captured_name} is?
+                    </div>
+                    <ul className="space-y-1">
+                      {p.candidates.slice(0, 5).map((c) => {
+                        const name = [c.first_name, c.middle_name, c.last_name]
+                          .filter(Boolean)
+                          .join(" ");
+                        const isCurrent = c.ncid === p.voter_ncid;
+                        return (
+                          <li
+                            key={c.ncid}
+                            className="flex items-baseline justify-between gap-2 rounded-md bg-[var(--color-surface)] px-2 py-1.5 text-sm"
+                          >
+                            <span>
+                              <span className="font-medium">{name}</span>
+                              <span className="ml-2 text-xs text-[var(--color-ink-subtle)]">
+                                {c.res_street_address}
+                                {c.res_city ? ", " + c.res_city : ""}
+                              </span>
+                              <span className="ml-2 font-mono text-xs text-[var(--color-ink-subtle)]">
+                                {Math.round(c.confidence * 100)}%
+                              </span>
+                              {isCurrent && (
+                                <span className="ml-2 chip chip-success">currently linked</span>
+                              )}
+                            </span>
+                            <button
+                              onClick={() => confirmMatch(p.participant_id, c.ncid)}
+                              disabled={confirmingId !== null || isCurrent}
+                              className="btn-secondary text-xs"
+                            >
+                              {isCurrent ? "Yes" : "Use this one"}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <button
+                      onClick={() => dismissCandidates(p.participant_id)}
+                      className="btn-ghost mt-2 text-xs"
+                      disabled={confirmingId !== null}
+                    >
+                      None of these
+                    </button>
+                  </div>
+                )}
+
+                <dl className="space-y-1 text-sm">
+                  <Row k="Sentiment" v={(extractP?.sentiment ?? "unknown").replace(/_/g, " ")} />
+                  {extractP?.issues.length ? (
+                    <Row k="Issues" v={extractP.issues.join(", ")} />
+                  ) : null}
+                  {extractP?.tags.length ? (
+                    <Row k="Tags" v={extractP.tags.join(", ")} />
+                  ) : null}
+                  {extractP?.notes ? <Row k="Said" v={extractP.notes} /> : null}
+                </dl>
+              </section>
+            );
+          })}
+
+          {result.extract.follow_up && (
+            <div className="mt-4 border-t border-[var(--color-border)] pt-3">
               <Row
                 k="Follow-up"
                 v={`${result.extract.follow_up.action} (in ${result.extract.follow_up.days_until} days)`}
               />
-            )}
-          </dl>
+            </div>
+          )}
 
           {result.extract.mentioned_people.length > 0 && (
             <div className="mt-4 border-t border-[var(--color-border)] pt-3">
