@@ -34,6 +34,7 @@ export default function NewPersonPage() {
   useEffect(() => {
     const q = name.trim();
     if (q.length < 3) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMatches([]);
       return;
     }

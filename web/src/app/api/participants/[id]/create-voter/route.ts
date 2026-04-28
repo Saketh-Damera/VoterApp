@@ -109,22 +109,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await supabase.from("voter_lists").update({ row_count: memberCount }).eq("id", manualListId);
   }
 
-  // Link the participant.
+  // Link the participant. Parent interaction no longer has a voter_ncid
+  // mirror column to update — participants are the source of truth.
   const { error: linkErr } = await supabase
     .from("interaction_participants")
     .update({ voter_ncid: ncid, match_confidence: 1.0 })
     .eq("id", id);
   if (linkErr) return Response.json({ error: `link failed: ${linkErr.message}` }, { status: 500 });
-
-  // Mirror voter_ncid to the parent interaction for primary participants
-  // (the legacy column is still read by some paths). Only mirror if the
-  // parent doesn't already have a voter_ncid — `.is(null)` is the correct
-  // PostgREST predicate for IS NULL.
-  await supabase
-    .from("interactions")
-    .update({ voter_ncid: ncid, match_confidence: 1.0 })
-    .eq("id", participant.interaction_id)
-    .is("voter_ncid", null);
 
   return Response.json({ ok: true, ncid, list_id: manualListId });
 }

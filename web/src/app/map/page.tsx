@@ -50,9 +50,9 @@ async function countUngeocoded(
   userId: string,
 ): Promise<number> {
   const { data } = await supabase
-    .from("interactions")
-    .select("voter_ncid, voters!inner(lat)")
-    .eq("user_id", userId)
+    .from("interaction_participants")
+    .select("voter_ncid, interactions!inner(user_id), voters!inner(lat)")
+    .eq("interactions.user_id", userId)
     .not("voter_ncid", "is", null);
   type Row = { voter_ncid: string; voters: { lat: number | null } };
   const rows = (data as Row[] | null) ?? [];

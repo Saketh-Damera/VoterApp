@@ -25,6 +25,7 @@ export default function DailyBriefCard() {
         const parsed = JSON.parse(raw) as { date: string; brief: Brief };
         const today = new Date().toDateString();
         if (parsed.date === today) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setBrief(parsed.brief);
           setDate(parsed.date);
         }

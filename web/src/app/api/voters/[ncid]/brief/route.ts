@@ -13,18 +13,47 @@ export async function POST(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
-  const [{ data: candidate }, { data: profile }, { data: interactions }] = await Promise.all([
+  const [{ data: candidate }, { data: profile }, { data: rawParts }] = await Promise.all([
     supabase.from("candidates").select("candidate_name, office, jurisdiction").eq("user_id", user.id).maybeSingle(),
     supabase.rpc("get_voter_profile", { p_ncid: ncid }),
-    supabase.from("interactions")
-      .select("created_at, captured_location, notes, sentiment, issues, tags")
+    // Per-person sentiment/issues/tags live on participants. Join to the
+    // parent interaction for created_at + location + cleaned notes.
+    supabase.from("interaction_participants")
+      .select("sentiment, issues, tags, notes, interactions(created_at, captured_location, notes)")
       .eq("voter_ncid", ncid)
-      .order("created_at", { ascending: false })
-      .limit(10),
+      .limit(20),
   ]);
   if (!candidate || !profile) {
     return Response.json({ error: "missing candidate profile or voter" }, { status: 400 });
   }
+
+  type Inter = { created_at: string; captured_location: string | null; notes: string | null };
+  type PartRow = {
+    sentiment: string | null;
+    issues: string[] | null;
+    tags: string[] | null;
+    notes: string | null;
+    // Supabase typegen returns the join as an array even for single-row joins.
+    interactions: Inter | Inter[] | null;
+  };
+  const oneInter = (i: Inter | Inter[] | null): Inter | null =>
+    Array.isArray(i) ? i[0] ?? null : i;
+  const parts = (rawParts ?? []) as unknown as PartRow[];
+  const interactions = parts
+    .map((p) => {
+      const inter = oneInter(p.interactions);
+      return {
+        created_at: inter?.created_at ?? "",
+        captured_location: inter?.captured_location ?? null,
+        notes: p.notes ?? inter?.notes ?? null,
+        sentiment: p.sentiment,
+        issues: p.issues,
+        tags: p.tags,
+      };
+    })
+    .filter((r) => r.created_at)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 10);
 
   type Profile = {
     voter: {

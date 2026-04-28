@@ -43,6 +43,7 @@ function LoginInner() {
   // Surface errors that bounced back from /auth/callback
   useEffect(() => {
     const e = searchParams.get("auth_error");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (e) setResult({ error: friendlyAuthError(e, "signin") });
   }, [searchParams]);
 

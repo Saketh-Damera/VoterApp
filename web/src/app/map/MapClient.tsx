@@ -314,7 +314,7 @@ export default function MapClient({
       {ungeocoded > 0 && (
         <div className="card flex flex-wrap items-center justify-between gap-2 bg-[var(--color-surface-muted)] p-3 text-sm">
           <span className="text-[var(--color-ink-muted)]">
-            {ungeocoded} contacted voters don't have coordinates yet.
+            {ungeocoded} contacted voters don&apos;t have coordinates yet.
           </span>
           <button onClick={geocodeMore} disabled={geocoding} className="btn-secondary text-xs">
             {geocoding ? "Geocoding..." : "Geocode next 25"}

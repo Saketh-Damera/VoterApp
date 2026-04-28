@@ -1,16 +1,10 @@
 import { NextRequest } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase/server";
 
-const ALLOWED = [
-  "voter_ncid",
-  "captured_name",
-  "captured_location",
-  "notes",
-  "issues",
-  "tags",
-  "sentiment",
-  "match_confidence",
-] as const;
+// Encounter-level edits only. Per-person fields (voter_ncid, sentiment,
+// issues, tags) live on interaction_participants and must be patched via
+// /api/participants/[id].
+const ALLOWED = ["captured_name", "captured_location", "notes"] as const;
 
 type Patch = Partial<Record<(typeof ALLOWED)[number], unknown>>;
 
@@ -29,14 +23,17 @@ export async function PATCH(
     if (k in body) patch[k] = body[k];
   }
   if (Object.keys(patch).length === 0) {
-    return Response.json({ error: "no fields to update" }, { status: 400 });
+    return Response.json(
+      { error: "no encounter fields to update; use /api/participants/[id] for per-person edits" },
+      { status: 400 },
+    );
   }
 
   const { data, error } = await supabase
     .from("interactions")
     .update(patch)
     .eq("id", id)
-    .select("*")
+    .select("id, captured_name, captured_location, notes, created_at")
     .single();
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ ok: true, interaction: data });

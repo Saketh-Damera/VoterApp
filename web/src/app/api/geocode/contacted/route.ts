@@ -15,9 +15,12 @@ export async function POST(req: NextRequest) {
   const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "25", 10), 50);
 
   const { data: toGeocode } = await supabase
-    .from("interactions")
-    .select("voter_ncid, voters!inner(ncid, res_street_address, res_city, res_zip, lat)")
-    .eq("user_id", user.id)
+    .from("interaction_participants")
+    .select(
+      "voter_ncid, interactions!inner(user_id), " +
+        "voters!inner(ncid, res_street_address, res_city, res_zip, lat)",
+    )
+    .eq("interactions.user_id", user.id)
     .not("voter_ncid", "is", null)
     .limit(200);
 

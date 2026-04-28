@@ -8,14 +8,15 @@ export async function POST(
 ) {
   const { id } = await params;
   const supabase = await getSupabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
+  // Conversation-level notes still live on interactions; per-person
+  // sentiment/issues/tags now live on the primary participant — that's
+  // where the analysis gets written.
   const { data: interaction, error: selErr } = await supabase
     .from("interactions")
-    .select("id, notes, voter_ncid")
+    .select("id, notes")
     .eq("id", id)
     .single();
   if (selErr || !interaction) {
@@ -34,19 +35,17 @@ export async function POST(
   }
 
   const { error: upErr } = await supabase
-    .from("interactions")
+    .from("interaction_participants")
     .update({
       issues: analysis.issues,
       sentiment: analysis.sentiment,
       tags: analysis.tags,
     })
-    .eq("id", id);
+    .eq("interaction_id", id)
+    .eq("is_primary", true);
   if (upErr) {
     return Response.json({ error: "update_failed", detail: upErr.message }, { status: 500 });
   }
-
-  // Reminders feature was removed; the follow_up text is captured in the
-  // interaction's analysis and surfaced in the UI.
 
   return Response.json({ ok: true, analysis });
 }

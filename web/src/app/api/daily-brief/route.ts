@@ -31,13 +31,15 @@ export async function POST(_req: NextRequest) {
   type TopAction = { first_name: string | null; last_name: string | null; message: string | null };
   const top = Array.isArray(topAction) ? (topAction[0] as TopAction | undefined) : null;
 
-  // Recent issues/sentiments for the week
+  // Recent issues/sentiments for the week. issues + sentiment are now per
+  // participant; pull every participant whose parent interaction is in the
+  // last 7 days. Filter to user-owned via the join (RLS does the actual gate).
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data: recent } = await supabase
-    .from("interactions")
-    .select("issues, sentiment")
-    .eq("user_id", user.id)
-    .gt("created_at", weekAgo);
+    .from("interaction_participants")
+    .select("issues, sentiment, interactions!inner(user_id, created_at)")
+    .eq("interactions.user_id", user.id)
+    .gt("interactions.created_at", weekAgo);
 
   type Recent = { issues: string[] | null; sentiment: string | null };
   const rowsRecent = (recent as Recent[] | null) ?? [];

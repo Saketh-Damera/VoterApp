@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
+import { useRecorder, formatElapsed } from "./useRecorder";
 
 type ParticipantOut = {
   name: string;
@@ -46,156 +47,56 @@ type ParticipantResult = {
   candidates: Candidate[];
 };
 
+type Result = {
+  interaction_id: string;
+  extract: Extract;
+  participants: ParticipantResult[];
+};
+
 export default function DebriefClient() {
   const router = useRouter();
-  const [recSupported, setRecSupported] = useState(true);
-  const [recording, setRecording] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
-  const [transcript, setTranscript] = useState("");
-  const [processing, setProcessing] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [voiceNote, setVoiceNote] = useState<string | null>(null);
-  const [elapsed, setElapsed] = useState(0);
-  const [result, setResult] = useState<null | {
-    interaction_id: string;
-    extract: Extract;
-    participants: ParticipantResult[];
-  }>(null);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
-  const [addedMentions, setAddedMentions] = useState<Set<string>>(new Set());
-  const [addingMention, setAddingMention] = useState<string | null>(null);
   const supabase = getSupabaseBrowser();
-
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const streamRef = useRef<MediaStream | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!("MediaRecorder" in window) || !navigator.mediaDevices?.getUserMedia) {
-      setRecSupported(false);
-    }
-  }, []);
+  const [transcript, setTranscript] = useState("");
+  const [processing, setProcessing] = useState(false);
+  const [result, setResult] = useState<Result | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [submitErr, setSubmitErr] = useState<string | null>(null);
+  const [addedMentions, setAddedMentions] = useState<Set<string>>(new Set());
+  const [addingMention, setAddingMention] = useState<string | null>(null);
 
-  function pickMime(): string | undefined {
-    if (typeof MediaRecorder === "undefined") return undefined;
-    const candidates = [
-      "audio/webm;codecs=opus",
-      "audio/webm",
-      "audio/mp4;codecs=mp4a.40.2",
-      "audio/mp4",
-      "audio/ogg;codecs=opus",
-    ];
-    for (const m of candidates) {
-      if (MediaRecorder.isTypeSupported(m)) return m;
-    }
-    return undefined;
-  }
+  const recorder = useRecorder({
+    onTranscript: (text) => setTranscript((t) => (t ? t + " " : "") + text),
+  });
 
-  async function start() {
-    setErr(null);
-    setVoiceNote(null);
-    setResult(null);
-    if (!recSupported) {
-      setVoiceNote("This browser doesn't support in-page recording. Type below instead.");
+  const err = submitErr ?? recorder.err;
+
+  async function process() {
+    const full = transcript.trim();
+    if (full.length < 10) {
+      setSubmitErr("Say or type at least a sentence — include the person's name + what you heard.");
       return;
     }
+    setProcessing(true);
+    setSubmitErr(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = pickMime();
-      const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-      chunksRef.current = [];
-      mr.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
-      };
-      mr.onstop = () => uploadAndTranscribe(mr.mimeType);
-      mr.start();
-      recorderRef.current = mr;
-      streamRef.current = stream;
-      setRecording(true);
-      setElapsed(0);
-      timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
-    } catch (e) {
-      const name = (e as Error & { name?: string }).name;
-      if (name === "NotAllowedError") {
-        setVoiceNote("Mic permission denied. Allow microphone access in the address bar and try again.");
-      } else if (name === "NotFoundError") {
-        setVoiceNote("No microphone found. Plug one in or type below.");
+      const res = await fetch("/api/debrief", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ transcript: full }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setSubmitErr(json.error ?? "debrief failed");
       } else {
-        setVoiceNote(`Couldn't start recording: ${(e as Error).message}`);
+        setResult(json);
+        router.refresh();
       }
-    }
-  }
-
-  function stop() {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    setRecording(false);
-    const mr = recorderRef.current;
-    if (mr && mr.state !== "inactive") mr.stop();
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-  }
-
-  async function uploadAndTranscribe(mimeType: string) {
-    setTranscribing(true);
-    setErr(null);
-    try {
-      const blob = new Blob(chunksRef.current, { type: mimeType || "audio/webm" });
-      if (blob.size < 500) {
-        setVoiceNote("Recording was too short to transcribe. Try again.");
-        return;
-      }
-      const ext = mimeType.includes("mp4") ? "mp4" : mimeType.includes("ogg") ? "ogg" : "webm";
-      const form = new FormData();
-      form.append("audio", blob, `debrief.${ext}`);
-      await transcribeFile(form);
     } catch (e) {
-      setErr((e as Error).message);
+      setSubmitErr((e as Error).message);
     } finally {
-      setTranscribing(false);
-    }
-  }
-
-  async function transcribeFile(form: FormData) {
-    const res = await fetch("/api/transcribe", { method: "POST", body: form });
-    const json = await res.json();
-    if (!res.ok) {
-      setErr(json.error ?? "transcription failed");
-      return;
-    }
-    const text = (json.text as string).trim();
-    if (!text) {
-      setVoiceNote("No speech recognized.");
-      return;
-    }
-    setTranscript((t) => (t ? t + " " : "") + text);
-  }
-
-  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    e.target.value = ""; // allow re-uploading the same file
-    if (!f) return;
-    if (f.size > 25 * 1024 * 1024) {
-      setErr("Audio file too large (max 25 MB).");
-      return;
-    }
-    setErr(null);
-    setVoiceNote(null);
-    setResult(null);
-    setTranscribing(true);
-    try {
-      const form = new FormData();
-      form.append("audio", f, f.name);
-      await transcribeFile(form);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setTranscribing(false);
+      setProcessing(false);
     }
   }
 
@@ -220,7 +121,7 @@ export default function DebriefClient() {
         router.refresh();
       } else {
         const json = await res.json();
-        setErr(json.error ?? "couldn't update match");
+        setSubmitErr(json.error ?? "couldn't update match");
       }
     } finally {
       setConfirmingId(null);
@@ -237,11 +138,7 @@ export default function DebriefClient() {
     });
   }
 
-  async function addMentionAsContact(mention: {
-    name: string;
-    relationship: string;
-    context: string;
-  }) {
+  async function addMentionAsContact(mention: { name: string; relationship: string; context: string }) {
     setAddingMention(mention.name);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -250,48 +147,25 @@ export default function DebriefClient() {
       const referredBy = lead?.captured_name
         ? `Referred by ${lead.captured_name}`
         : "Mentioned in a debrief";
-      await supabase.from("interactions").insert({
-        user_id: user.id,
-        voter_ncid: null,
-        captured_name: mention.name,
-        captured_location: referredBy,
-        notes: mention.relationship
-          ? `${mention.relationship}: ${mention.context}`
-          : mention.context,
-        tags: mention.relationship ? [mention.relationship.toLowerCase().replace(/\s+/g, "-")] : [],
+      const notes = mention.relationship
+        ? `${mention.relationship}: ${mention.context}`
+        : mention.context;
+      // Goes through the atomic /api/interactions/manual route, same as
+      // /people/new — creates the interaction and primary participant in one
+      // transaction.
+      await fetch("/api/interactions/manual", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          captured_name: mention.name,
+          captured_location: referredBy,
+          notes,
+        }),
       });
       setAddedMentions((prev) => new Set(prev).add(mention.name));
       router.refresh();
     } finally {
       setAddingMention(null);
-    }
-  }
-
-  async function process() {
-    const full = transcript.trim();
-    if (full.length < 10) {
-      setErr("Say or type at least a sentence — include the person's name + what you heard.");
-      return;
-    }
-    setProcessing(true);
-    setErr(null);
-    try {
-      const res = await fetch("/api/debrief", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ transcript: full }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setErr(json.error ?? "debrief failed");
-      } else {
-        setResult(json);
-        router.refresh();
-      }
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setProcessing(false);
     }
   }
 
@@ -305,29 +179,29 @@ export default function DebriefClient() {
             onChange={(e) => setTranscript(e.target.value)}
             rows={6}
             placeholder={
-              recording
+              recorder.recording
                 ? "Recording... stop when you're done."
-                : transcribing
+                : recorder.transcribing
                 ? "Transcribing..."
                 : "e.g. Talked to Carla Hernandez at Githens PTA. Cares about Oak traffic, son at Jefferson, leans yes, asked for a yard sign."
             }
             className="input mt-1"
-            disabled={processing || transcribing || recording}
+            disabled={processing || recorder.transcribing || recorder.recording}
           />
         </label>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {!recording ? (
+          {!recorder.recording ? (
             <button
-              onClick={start}
-              disabled={processing || transcribing}
+              onClick={recorder.start}
+              disabled={processing || recorder.transcribing}
               className="btn-secondary"
             >
-              {transcribing ? "Transcribing..." : "Start recording"}
+              {recorder.transcribing ? "Transcribing..." : "Start recording"}
             </button>
           ) : (
-            <button onClick={stop} className="btn-primary">
-              Stop {formatElapsed(elapsed)}
+            <button onClick={recorder.stop} className="btn-primary">
+              Stop {formatElapsed(recorder.elapsed)}
             </button>
           )}
 
@@ -335,12 +209,16 @@ export default function DebriefClient() {
             ref={fileInputRef}
             type="file"
             accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg,.mp4"
-            onChange={onPickFile}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              recorder.pickFile(f);
+            }}
             className="hidden"
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={processing || recording || transcribing}
+            disabled={processing || recorder.recording || recorder.transcribing}
             className="btn-secondary"
             title="Upload an audio file (m4a, mp3, wav, webm, mp4)"
           >
@@ -349,7 +227,7 @@ export default function DebriefClient() {
 
           <button
             onClick={process}
-            disabled={processing || recording || transcribing || transcript.trim().length < 10}
+            disabled={processing || recorder.recording || recorder.transcribing || transcript.trim().length < 10}
             className="btn-primary"
           >
             {processing ? "Claude parsing..." : "Save to JED"}
@@ -359,20 +237,20 @@ export default function DebriefClient() {
             onClick={() => {
               setTranscript("");
               setResult(null);
-              setErr(null);
-              setVoiceNote(null);
+              setSubmitErr(null);
+              recorder.reset();
             }}
             className="btn-ghost text-sm"
-            disabled={processing || recording || transcribing}
+            disabled={processing || recorder.recording || recorder.transcribing}
           >
             Clear
           </button>
         </div>
 
-        {voiceNote && (
+        {recorder.voiceNote && (
           <div className="mt-3 rounded-md border border-[var(--color-warning)] bg-[var(--color-warning-soft)] p-3 text-sm text-[var(--color-warning)]">
             <strong className="block mb-1">Heads up</strong>
-            {voiceNote}
+            {recorder.voiceNote}
           </div>
         )}
       </div>
@@ -546,10 +424,4 @@ function Row({ k, v }: { k: string; v: string }) {
       <dd className="text-sm text-[var(--color-ink)]">{v}</dd>
     </div>
   );
-}
-
-function formatElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
 }

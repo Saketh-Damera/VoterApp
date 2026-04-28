@@ -50,16 +50,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return Response.json({ error: error?.message ?? "update failed" }, { status: 400 });
   }
 
-  // Mirror to parent interaction for the primary participant only.
-  if (updated.is_primary) {
-    const mirror: Record<string, unknown> = {};
-    if ("voter_ncid" in patch) mirror.voter_ncid = updated.voter_ncid;
-    if ("sentiment" in patch) mirror.sentiment = updated.sentiment;
-    if ("match_confidence" in patch) mirror.match_confidence = patch.match_confidence;
-    if (Object.keys(mirror).length) {
-      await supabase.from("interactions").update(mirror).eq("id", updated.interaction_id);
-    }
-  }
+  // Mirror columns on interactions have been dropped; participants are the
+  // sole source of truth for voter_ncid / sentiment / etc.
 
   return Response.json({ ok: true, participant: updated });
 }

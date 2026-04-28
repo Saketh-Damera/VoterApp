@@ -28,6 +28,7 @@ export default function QuickSearch() {
   useEffect(() => {
     const term = q.trim();
     if (term.length < 3) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMatches([]);
       return;
     }
