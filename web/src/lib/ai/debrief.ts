@@ -69,13 +69,20 @@ Rules:
 - Issue and tag tokens are lowercase and hyphenated ('oak-traffic', 'public-schools').
 - Follow-up should be null if nothing needs one; otherwise a specific action + 1-30 days.`;
 
+// Cap to ~50K chars so a long Whisper transcript can't blow up cost or
+// latency. Approx 12K tokens of input — well within Haiku's window.
+const MAX_TRANSCRIPT_CHARS = 50_000;
+
 export async function extractDebrief(transcript: string): Promise<DebriefExtract> {
+  const trimmed = transcript.length > MAX_TRANSCRIPT_CHARS
+    ? transcript.slice(0, MAX_TRANSCRIPT_CHARS) + "\n[transcript truncated]"
+    : transcript;
   const client = new Anthropic();
   const response = await client.messages.parse({
     model: process.env.JED_MODEL ?? "claude-haiku-4-5",
     max_tokens: 2048,
     system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
-    messages: [{ role: "user", content: transcript }],
+    messages: [{ role: "user", content: trimmed }],
     output_config: { format: zodOutputFormat(DebriefExtract) },
   });
   if (!response.parsed_output) throw new Error("Claude returned no debrief extract");

@@ -1,7 +1,34 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+// CSRF: state-changing API requests must come from a same-origin browser
+// context. Reject POST/PATCH/PUT/DELETE to /api/* whose Origin header is
+// missing or differs from the request host. SameSite=Lax cookies (Supabase
+// default) already block most cross-site forgeries; this is belt-and-suspenders.
+const MUTATING = new Set(["POST", "PATCH", "PUT", "DELETE"]);
+
+function isCrossOrigin(request: NextRequest): boolean {
+  if (!MUTATING.has(request.method)) return false;
+  if (!request.nextUrl.pathname.startsWith("/api/")) return false;
+  const origin = request.headers.get("origin");
+  const host = request.headers.get("host");
+  if (!origin || !host) return true; // missing Origin on a mutating request — block
+  try {
+    const originHost = new URL(origin).host;
+    return originHost !== host;
+  } catch {
+    return true;
+  }
+}
+
 export async function proxy(request: NextRequest) {
+  if (isCrossOrigin(request)) {
+    return new NextResponse(JSON.stringify({ error: "cross-origin request blocked" }), {
+      status: 403,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

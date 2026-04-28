@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase/server";
-import { extractDebrief, type Participant } from "@/lib/ai/debrief";
+import { extractDebrief } from "@/lib/ai/debrief";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -27,13 +28,21 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
+  const limited = await checkRateLimit(supabase, user.id, "debrief", 60, 60);
+  if (!limited.ok) {
+    return Response.json(
+      { error: `rate limit: ${limited.message}` },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfter) } },
+    );
+  }
+
   const body = await req.json();
   const transcript = (body.transcript as string | undefined)?.trim();
   if (!transcript || transcript.length < 10) {
     return Response.json({ error: "transcript too short" }, { status: 400 });
   }
 
-  // 1. Extract structure (now includes participants[])
+  // 1. Extract structure
   let extract;
   try {
     extract = await extractDebrief(transcript);
@@ -41,7 +50,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: (e as Error).message }, { status: 502 });
   }
 
-  // 2. Per-participant fuzzy match
+  // 2. Per-participant fuzzy match (in parallel)
   const participantsWithMatches = await Promise.all(
     extract.participants.map(async (p, idx) => {
       let candidates: VoterMatch[] = [];
@@ -52,8 +61,8 @@ export async function POST(req: NextRequest) {
       const top = candidates[0];
       const picked = top && top.confidence >= 0.5 ? top : null;
       return {
-        ...p,
-        is_primary: idx === 0,
+        participant: p,
+        index: idx,
         candidates,
         picked_ncid: picked?.ncid ?? null,
         confidence: top?.confidence ?? null,
@@ -61,97 +70,58 @@ export async function POST(req: NextRequest) {
     }),
   );
 
-  const lead = participantsWithMatches[0];
-
-  // 3. Insert the parent interaction. The interaction-level captured_name and
-  //    sentiment mirror the lead participant for back-compat with anything
-  //    still reading directly from interactions.
-  const { data: inserted, error: insErr } = await supabase
-    .from("interactions")
-    .insert({
-      user_id: user.id,
-      voter_ncid: lead.picked_ncid,
-      captured_name: lead.name || "(from debrief)",
-      captured_location: extract.captured_location,
-      notes: extract.cleaned_notes,
-      issues: lead.issues,
-      sentiment: lead.sentiment,
-      tags: [
-        ...lead.tags,
-        ...(extract.wants_sign ? ["wants-yard-sign"] : []),
-        ...(extract.wants_to_volunteer ? ["volunteer-interest"] : []),
-      ],
-      match_confidence: lead.confidence,
-    })
-    .select("id")
-    .single();
-  if (insErr || !inserted) {
-    return Response.json({ error: insErr?.message ?? "insert failed" }, { status: 500 });
-  }
-  const interactionId = inserted.id as string;
-
-  // 4. Insert one participant row per extracted person.
-  const participantRows = participantsWithMatches.map((p) => ({
-    interaction_id: interactionId,
+  // 3. Atomic write via record_conversation RPC. The RPC inserts the parent
+  //    interaction, all participant rows, and any household_links edges in a
+  //    single transaction — no orphan parent if a participant insert fails.
+  const participantsPayload = participantsWithMatches.map((p) => ({
+    captured_name: p.participant.name || "(no name)",
     voter_ncid: p.picked_ncid,
-    captured_name: p.name || "(no name)",
-    relationship: p.relationship || null,
-    sentiment: p.sentiment,
-    issues: p.issues,
-    tags: p.tags,
-    notes: p.notes || null,
+    relationship: p.participant.relationship || null,
+    sentiment: p.participant.sentiment,
+    issues: p.participant.issues,
+    tags: p.participant.tags,
+    notes: p.participant.notes || null,
     match_confidence: p.confidence,
-    is_primary: p.is_primary,
+    is_primary: p.index === 0,
   }));
-  const { data: insertedParticipants, error: pErr } = await supabase
-    .from("interaction_participants")
-    .insert(participantRows)
-    .select("id, captured_name, voter_ncid, match_confidence");
-  if (pErr) {
-    return Response.json({ error: `participant insert failed: ${pErr.message}` }, { status: 500 });
+
+  const extraTags: string[] = [
+    ...(extract.wants_sign ? ["wants-yard-sign"] : []),
+    ...(extract.wants_to_volunteer ? ["volunteer-interest"] : []),
+  ];
+
+  const { data: rpcResult, error: rpcErr } = await supabase.rpc("record_conversation", {
+    p_user_id: user.id,
+    p_captured_location: extract.captured_location,
+    p_notes: extract.cleaned_notes,
+    p_participants: participantsPayload,
+    p_extra_tags: extraTags,
+  });
+  if (rpcErr || !rpcResult) {
+    return Response.json(
+      { error: `record_conversation failed: ${rpcErr?.message ?? "unknown"}` },
+      { status: 500 },
+    );
   }
 
-  // 5. Household edges: any two MATCHED participants in the same conversation
-  //    are now linked. Symmetric — store smaller ncid first.
-  const matchedNcids = participantsWithMatches
-    .filter((p) => p.picked_ncid)
-    .map((p) => p.picked_ncid as string);
-  if (matchedNcids.length >= 2) {
-    const edges: Array<{ user_id: string; voter_a: string; voter_b: string; source_interaction_id: string }> = [];
-    for (let i = 0; i < matchedNcids.length; i++) {
-      for (let j = i + 1; j < matchedNcids.length; j++) {
-        const a = matchedNcids[i];
-        const b = matchedNcids[j];
-        if (a === b) continue;
-        const [voter_a, voter_b] = a < b ? [a, b] : [b, a];
-        edges.push({
-          user_id: user.id,
-          voter_a,
-          voter_b,
-          source_interaction_id: interactionId,
-        });
-      }
-    }
-    if (edges.length) {
-      await supabase
-        .from("household_links")
-        .upsert(edges, { onConflict: "user_id,voter_a,voter_b", ignoreDuplicates: true });
-    }
-  }
+  const { interaction_id, participant_ids } = rpcResult as {
+    interaction_id: string;
+    participant_ids: string[];
+  };
 
-  // 6. Return per-participant matches so the UI can show a "did you mean?"
-  //    prompt for any participant whose top match is below confidence.
-  const result: ParticipantResult[] = (insertedParticipants ?? []).map((row, idx) => ({
-    participant_id: row.id as string,
-    captured_name: row.captured_name as string,
-    voter_ncid: row.voter_ncid as string | null,
-    match_confidence: row.match_confidence as number | null,
-    candidates: participantsWithMatches[idx].candidates,
+  // 4. Build the per-participant response so the UI can show "did you mean?"
+  //    panels for any participant whose match is uncertain.
+  const result: ParticipantResult[] = participantsWithMatches.map((p, idx) => ({
+    participant_id: participant_ids[idx],
+    captured_name: p.participant.name || "(no name)",
+    voter_ncid: p.picked_ncid,
+    match_confidence: p.confidence,
+    candidates: p.candidates,
   }));
 
   return Response.json({
     ok: true,
-    interaction_id: interactionId,
+    interaction_id,
     extract,
     participants: result,
   });

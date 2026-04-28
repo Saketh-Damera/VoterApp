@@ -134,7 +134,7 @@ export default function SettingsForm({
         </span>
       </Field>
 
-      <Field label="Fundraising goal ($)" hint="Shows as a progress bar on the dashboard and /fundraising.">
+      <Field label="Fundraising goal ($)" hint="Used as a target on your dashboard.">
         <input
           type="number"
           value={goal}

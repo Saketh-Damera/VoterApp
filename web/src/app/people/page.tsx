@@ -13,7 +13,6 @@ export type TalkedTo = {
   res_city: string | null;
   party_cd: string | null;
   last_participant_id: string;
-  last_interaction_id: string;
   last_sentiment: string | null;
   last_notes: string | null;
   last_issues: string[] | null;

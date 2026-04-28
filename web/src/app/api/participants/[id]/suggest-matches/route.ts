@@ -90,17 +90,25 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     .filter((v): v is VoterMini => !!v && !!v.res_street_address)
     .map((v) => ({ addr: v.res_street_address!, city: v.res_city ?? "" }));
 
+  // Pull voters at any address that a co-participant linked to. We use
+  // .in() per column rather than constructing an .or() filter from raw
+  // address strings — addresses with quotes / commas / parens broke the
+  // PostgREST or-syntax. Filter to (addr, city) pairs client-side after.
   let addressHits: Array<Record<string, unknown>> = [];
   if (addressKeys.length) {
-    const orFilter = addressKeys
-      .map((k) => `and(res_street_address.eq.${JSON.stringify(k.addr)},res_city.eq.${JSON.stringify(k.city)})`)
-      .join(",");
+    const addrs = Array.from(new Set(addressKeys.map((k) => k.addr)));
+    const cities = Array.from(new Set(addressKeys.map((k) => k.city)));
     const { data } = await supabase
       .from("voters")
       .select("ncid, first_name, last_name, res_street_address, res_city, party_cd, age")
-      .or(orFilter)
-      .limit(20);
-    addressHits = data ?? [];
+      .in("res_street_address", addrs)
+      .in("res_city", cities)
+      .limit(50);
+    const allowed = new Set(addressKeys.map((k) => `${k.addr}|${k.city}`));
+    addressHits = (data ?? []).filter((r) => {
+      const v = r as { res_street_address: string | null; res_city: string | null };
+      return allowed.has(`${v.res_street_address ?? ""}|${v.res_city ?? ""}`);
+    });
   }
 
   // Dedupe by ncid

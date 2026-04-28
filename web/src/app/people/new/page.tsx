@@ -54,41 +54,28 @@ export default function NewPersonPage() {
   async function save() {
     setSaving(true);
     setErr(null);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setErr("Not signed in");
-      setSaving(false);
-      return;
-    }
-    const { data: inserted, error } = await supabase
-      .from("interactions")
-      .insert({
-        user_id: user.id,
-        voter_ncid: picked?.ncid ?? null,
+    // Single atomic call into record_conversation on the server side. No
+    // dual write from the browser, no orphan rows on partial failure.
+    const res = await fetch("/api/interactions/manual", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
         captured_name: name.trim(),
         captured_location: location.trim() || null,
         notes: notes.trim() || null,
+        voter_ncid: picked?.ncid ?? null,
         match_confidence: picked?.confidence ?? null,
-      })
-      .select("id")
-      .single();
-    if (error || !inserted) {
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
       setSaving(false);
-      setErr(error?.message ?? "Save failed");
+      setErr(json.error ?? "Save failed");
       return;
     }
-    // Mirror to interaction_participants so /people sees this row.
-    await supabase.from("interaction_participants").insert({
-      interaction_id: inserted.id,
-      voter_ncid: picked?.ncid ?? null,
-      captured_name: name.trim() || "(no name)",
-      match_confidence: picked?.confidence ?? null,
-      notes: notes.trim() || null,
-      is_primary: true,
-    });
-    if (notes.trim().length >= 4) {
+    if (notes.trim().length >= 4 && json.interaction_id) {
       try {
-        await fetch(`/api/interactions/${inserted.id}/enrich`, { method: "POST" });
+        await fetch(`/api/interactions/${json.interaction_id}/enrich`, { method: "POST" });
       } catch {
         // Enrichment is best-effort; navigate anyway.
       }

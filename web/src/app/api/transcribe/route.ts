@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase/server";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -7,6 +8,14 @@ export async function POST(req: NextRequest) {
   const supabase = await getSupabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+
+  const limited = await checkRateLimit(supabase, user.id, "transcribe", 60, 60);
+  if (!limited.ok) {
+    return Response.json(
+      { error: `rate limit: ${limited.message}` },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfter) } },
+    );
+  }
 
   // Accept either env var name. OPENAI_API_KEY is the standard convention;
   // OpenAI_Whisper is what's currently in Vercel for this project.
