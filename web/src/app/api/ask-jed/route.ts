@@ -88,6 +88,7 @@ export async function POST(req: NextRequest) {
 
   type ParticipantRow = {
     captured_name: string;
+    voter_ncid: string | null;
     sentiment: string | null;
     issues: string[] | null;
     tags: string[] | null;
@@ -122,7 +123,7 @@ export async function POST(req: NextRequest) {
     supabase
       .from("interaction_participants")
       .select(
-        "captured_name, sentiment, issues, tags, notes, relationship, interaction_id, " +
+        "captured_name, voter_ncid, sentiment, issues, tags, notes, relationship, interaction_id, " +
           "interactions(captured_location, notes, created_at), " +
           "voters(first_name, last_name, res_street_address, res_city, party_cd)",
       )
@@ -213,7 +214,23 @@ export async function POST(req: NextRequest) {
       .map((b) => b.text)
       .join("\n")
       .trim();
-    return Response.json({ ok: true, answer });
+
+    // Cross-reference voter_lookup with the candidate's existing contact
+    // list so the UI can disable "Add" on voters that are already there.
+    const alreadyContactedNcids = new Set<string>();
+    for (const r of rawParticipants) {
+      if (r.voter_ncid) alreadyContactedNcids.add(r.voter_ncid);
+    }
+    const voterLookupAnnotated = voter_lookup.map((v) => ({
+      ...v,
+      already_contacted: alreadyContactedNcids.has(v.ncid),
+    }));
+
+    return Response.json({
+      ok: true,
+      answer,
+      voter_lookup: voterLookupAnnotated,
+    });
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 502 });
   }
