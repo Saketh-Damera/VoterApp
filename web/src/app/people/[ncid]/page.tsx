@@ -43,6 +43,11 @@ type HouseholdMember = {
   elections_voted: number | null;
 };
 
+type TalkedToWith = HouseholdMember & {
+  relationship: string | null;
+  source_interaction_id: string | null;
+};
+
 type RecentVote = {
   election_date: string;
   election_desc: string | null;
@@ -53,18 +58,34 @@ type Profile = {
   voter: Voter;
   turnout: Turnout;
   household: HouseholdMember[];
+  talked_to_with: TalkedToWith[];
   recent_votes: RecentVote[];
 };
 
-type Interaction = {
+// Per-participant row joined to its parent interaction. One row per time
+// the candidate logged a conversation that included this voter.
+type ParticipantRow = {
   id: string;
   captured_name: string;
-  captured_location: string | null;
-  notes: string | null;
-  created_at: string;
-  issues: string[] | null;
+  relationship: string | null;
   sentiment: string | null;
+  issues: string[] | null;
   tags: string[] | null;
+  notes: string | null;
+  is_primary: boolean;
+  interaction_id: string;
+  interactions: {
+    captured_location: string | null;
+    notes: string | null;
+    created_at: string;
+  } | null;
+};
+
+type CoParticipant = {
+  interaction_id: string;
+  captured_name: string;
+  voter_ncid: string | null;
+  relationship: string | null;
 };
 
 export default async function PersonPage({
@@ -80,12 +101,36 @@ export default async function PersonPage({
 
   const p = profile as Profile;
 
-  const { data: interactions } = await supabase
-    .from("interactions")
-    .select("id, captured_name, captured_location, notes, created_at, issues, sentiment, tags")
+  // Conversations this voter was part of, with per-participant fields.
+  const { data: rawParticipants } = await supabase
+    .from("interaction_participants")
+    .select(
+      "id, captured_name, relationship, sentiment, issues, tags, notes, is_primary, interaction_id, interactions(captured_location, notes, created_at)",
+    )
     .eq("voter_ncid", ncid)
-    .order("created_at", { ascending: false })
-    .returns<Interaction[]>();
+    .returns<ParticipantRow[]>();
+  const participantRows = (rawParticipants ?? []).slice().sort((a, b) => {
+    const aT = a.interactions?.created_at ?? "";
+    const bT = b.interactions?.created_at ?? "";
+    return bT.localeCompare(aT);
+  });
+
+  // For each conversation, the OTHER participants (so we can render
+  // "Together with: ..." per row).
+  const interactionIds = participantRows.map((r) => r.interaction_id);
+  const { data: rawCoP } = interactionIds.length
+    ? await supabase
+        .from("interaction_participants")
+        .select("interaction_id, captured_name, voter_ncid, relationship")
+        .in("interaction_id", interactionIds)
+    : { data: [] as CoParticipant[] };
+  const coByInteraction = new Map<string, CoParticipant[]>();
+  for (const row of (rawCoP ?? []) as CoParticipant[]) {
+    if (row.voter_ncid === ncid) continue;
+    const list = coByInteraction.get(row.interaction_id) ?? [];
+    list.push(row);
+    coByInteraction.set(row.interaction_id, list);
+  }
 
   const { data: { user } } = await supabase.auth.getUser();
   const { data: candidateRow } = await supabase
@@ -151,6 +196,9 @@ export default async function PersonPage({
       {p.household.length > 0 && (
         <section className="mb-6">
           <h2 className="section-label mb-2">Household ({p.household.length})</h2>
+          <p className="mb-2 text-xs text-[var(--color-ink-subtle)]">
+            Same address and surname in the voter file.
+          </p>
           <ul className="space-y-1">
             {p.household.map((h) => (
               <li key={h.ncid} className="card card-hover px-3 py-2 text-sm">
@@ -170,38 +218,97 @@ export default async function PersonPage({
         </section>
       )}
 
-      <section className="mb-6">
-        <h2 className="section-label mb-2">
-          Interactions {interactions?.length ? `(${interactions.length})` : ""}
-        </h2>
-        {!interactions?.length ? (
-          <div className="card p-4 text-sm text-[var(--color-ink-subtle)]">No interactions yet.</div>
-        ) : (
-          <ul className="space-y-2">
-            {interactions.map((i) => (
-              <li key={i.id} className="card p-4">
-                <div className="flex items-baseline justify-between text-xs text-[var(--color-ink-subtle)]">
-                  <span>{i.captured_location ?? "—"}</span>
-                  <span>{new Date(i.created_at).toLocaleString()}</span>
-                </div>
-                {i.notes && <p className="mt-1 text-sm text-[var(--color-ink)]">{i.notes}</p>}
-                {(i.sentiment || i.issues?.length || i.tags?.length) && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {i.sentiment && (
-                      <span className={`chip ${sentimentChip(i.sentiment)}`}>
-                        {i.sentiment.replace(/_/g, " ")}
-                      </span>
+      {p.talked_to_with && p.talked_to_with.length > 0 && (
+        <section className="mb-6">
+          <h2 className="section-label mb-2">Talked to together with ({p.talked_to_with.length})</h2>
+          <p className="mb-2 text-xs text-[var(--color-ink-subtle)]">
+            People who appeared in the same conversation as this voter.
+          </p>
+          <ul className="space-y-1">
+            {p.talked_to_with.map((t) => (
+              <li key={t.ncid} className="card card-hover px-3 py-2 text-sm">
+                <Link href={`/people/${t.ncid}`} className="flex items-baseline justify-between gap-2">
+                  <span className="min-w-0 truncate">
+                    {[t.first_name, t.last_name].filter(Boolean).join(" ")}
+                    {t.relationship && (
+                      <span className="ml-2 text-xs text-[var(--color-ink-subtle)]">{t.relationship}</span>
                     )}
-                    {i.issues?.map((x) => (
-                      <span key={`issue-${x}`} className="chip chip-primary">{x}</span>
-                    ))}
-                    {i.tags?.map((x) => (
-                      <span key={`tag-${x}`} className="chip chip-neutral">{x}</span>
-                    ))}
-                  </div>
-                )}
+                    {t.party_cd && <span className="ml-2 text-xs text-[var(--color-ink-subtle)]">{t.party_cd}</span>}
+                  </span>
+                  <span className="shrink-0 text-xs text-[var(--color-ink-subtle)]">
+                    {t.elections_voted ?? 0} votes
+                  </span>
+                </Link>
               </li>
             ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="mb-6">
+        <h2 className="section-label mb-2">
+          Conversations {participantRows.length ? `(${participantRows.length})` : ""}
+        </h2>
+        {!participantRows.length ? (
+          <div className="card p-4 text-sm text-[var(--color-ink-subtle)]">No conversations yet.</div>
+        ) : (
+          <ul className="space-y-2">
+            {participantRows.map((row) => {
+              const co = coByInteraction.get(row.interaction_id) ?? [];
+              const created = row.interactions?.created_at;
+              const fallbackNotes = row.interactions?.notes;
+              const showFallbackNotes = !row.notes && fallbackNotes;
+              return (
+                <li key={row.id} className="card p-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-[var(--color-ink-subtle)]">
+                    <span>
+                      {row.interactions?.captured_location ?? "—"}
+                      {row.relationship && !row.is_primary && (
+                        <span className="ml-2 chip chip-neutral">{row.relationship}</span>
+                      )}
+                    </span>
+                    <span>{created ? new Date(created).toLocaleString() : ""}</span>
+                  </div>
+                  {row.notes && <p className="mt-1 text-sm text-[var(--color-ink)]">{row.notes}</p>}
+                  {showFallbackNotes && (
+                    <p className="mt-1 text-sm text-[var(--color-ink-muted)]">{fallbackNotes}</p>
+                  )}
+                  {(row.sentiment || row.issues?.length || row.tags?.length) && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {row.sentiment && (
+                        <span className={`chip ${sentimentChip(row.sentiment)}`}>
+                          {row.sentiment.replace(/_/g, " ")}
+                        </span>
+                      )}
+                      {row.issues?.map((x) => (
+                        <span key={`issue-${x}`} className="chip chip-primary">{x}</span>
+                      ))}
+                      {row.tags?.map((x) => (
+                        <span key={`tag-${x}`} className="chip chip-neutral">{x}</span>
+                      ))}
+                    </div>
+                  )}
+                  {co.length > 0 && (
+                    <div className="mt-3 border-t border-[var(--color-border)] pt-2 text-xs text-[var(--color-ink-subtle)]">
+                      <span className="font-medium">Together with: </span>
+                      {co.map((c, i) => (
+                        <span key={`${c.interaction_id}-${i}`}>
+                          {c.voter_ncid ? (
+                            <Link href={`/people/${c.voter_ncid}`} className="hover:text-[var(--color-primary)]">
+                              {c.captured_name}
+                            </Link>
+                          ) : (
+                            <span>{c.captured_name}</span>
+                          )}
+                          {c.relationship ? ` (${c.relationship})` : ""}
+                          {i < co.length - 1 ? ", " : ""}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
