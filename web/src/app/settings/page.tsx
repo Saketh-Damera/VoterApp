@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import SettingsForm from "./SettingsForm";
 import OnboardingDataChoice from "./OnboardingDataChoice";
+import VolunteerGroupsPanel from "./VolunteerGroupsPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,14 @@ export default async function SettingsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: existing }, { count: listCount }] = await Promise.all([
+  type VG = { id: string; name: string; description: string | null; created_at: string };
+  type VM = { id: string; user_id: string; role: string; joined_at: string };
+  type VI = { id: string; email: string | null; invite_code: string; accepted_at: string | null; expires_at: string };
+  const [
+    { data: existing },
+    { count: listCount },
+    { data: ownedGroups },
+  ] = await Promise.all([
     supabase
       .from("candidates")
       .select("user_id, candidate_name, office, jurisdiction, election_date, fundraising_goal, scratchpad, race_type")
@@ -32,6 +40,32 @@ export default async function SettingsPage() {
       .from("voter_lists")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id),
+    supabase
+      .from("volunteer_groups")
+      .select("id, name, description, created_at")
+      .eq("owner_id", user.id)
+      .order("created_at", { ascending: false })
+      .returns<VG[]>(),
+  ]);
+
+  // Pull memberships + invites for the user's owned groups so the panel
+  // can render them. Two more queries instead of trying to do nested
+  // joins (PostgREST nesting + RLS gets gnarly).
+  const groupIds = (ownedGroups ?? []).map((g) => g.id);
+  const [{ data: memberships }, { data: invites }] = await Promise.all([
+    groupIds.length
+      ? supabase
+          .from("volunteer_memberships")
+          .select("id, group_id, user_id, role, joined_at")
+          .in("group_id", groupIds)
+      : Promise.resolve({ data: [] as Array<VM & { group_id: string }> }),
+    groupIds.length
+      ? supabase
+          .from("volunteer_invites")
+          .select("id, group_id, email, invite_code, accepted_at, expires_at, created_at")
+          .in("group_id", groupIds)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as Array<VI & { group_id: string; created_at: string }> }),
   ]);
 
   const isFirstRun = !existing;
@@ -68,6 +102,22 @@ export default async function SettingsPage() {
           Where will JED find people to match your notes against?
         </p>
         <OnboardingDataChoice hasOwnList={hasOwnList} />
+      </section>
+
+      <hr className="my-8 border-[var(--color-border)]" />
+
+      <section>
+        <h2 className="mb-1 text-base font-semibold text-[var(--color-ink)]">Volunteers</h2>
+        <p className="mb-4 text-sm text-[var(--color-ink-subtle)]">
+          Create a volunteer group, generate an invite link, and share it with
+          campaign volunteers. They sign up with their own email; conversations
+          they log are tagged with their name and rolled into your contact list.
+        </p>
+        <VolunteerGroupsPanel
+          groups={ownedGroups ?? []}
+          memberships={(memberships as Array<{ id: string; group_id: string; user_id: string; role: string; joined_at: string }>) ?? []}
+          invites={(invites as Array<{ id: string; group_id: string; email: string | null; invite_code: string; accepted_at: string | null; expires_at: string }>) ?? []}
+        />
       </section>
     </main>
   );

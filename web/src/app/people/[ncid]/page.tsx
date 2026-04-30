@@ -24,6 +24,27 @@ type Voter = {
   precinct_desc: string | null;
   ward_desc: string | null;
   municipality_desc: string | null;
+  // Contact (added 0028)
+  phone: string | null;
+  phone_secondary: string | null;
+  email: string | null;
+  email_secondary: string | null;
+  website: string | null;
+  occupation: string | null;
+  employer: string | null;
+  household_id: string | null;
+  mailing_address: string | null;
+  mailing_city: string | null;
+  mailing_state: string | null;
+  mailing_zip: string | null;
+  voter_status: string | null;
+  voter_status_reason: string | null;
+  congressional_district: string | null;
+  state_house_district: string | null;
+  state_senate_district: string | null;
+  school_district: string | null;
+  language_preference: string | null;
+  extra: Record<string, unknown> | null;
 };
 
 type Turnout = {
@@ -193,6 +214,89 @@ export default async function PersonPage({
         <Fact label="Last voted" value={relevance?.last_voted ?? p.turnout?.last_voted ?? null} />
       </section>
 
+      {hasContact(p.voter) && (
+        <section className="mb-6">
+          <h2 className="section-label mb-2">Contact</h2>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            {p.voter.phone && (
+              <Fact label="Phone" value={formatPhone(p.voter.phone)} />
+            )}
+            {p.voter.phone_secondary && (
+              <Fact label="Phone (alt)" value={formatPhone(p.voter.phone_secondary)} />
+            )}
+            {p.voter.email && (
+              <div className="card px-3 py-2">
+                <div className="text-[0.6875rem] uppercase tracking-wide text-[var(--color-ink-subtle)]">
+                  Email
+                </div>
+                <a
+                  href={`mailto:${p.voter.email}`}
+                  className="mt-0.5 block break-all text-sm text-[var(--color-primary)] hover:underline"
+                >
+                  {p.voter.email}
+                </a>
+              </div>
+            )}
+            {p.voter.website && (
+              <Fact label="Website" value={p.voter.website} />
+            )}
+            {p.voter.occupation && <Fact label="Occupation" value={p.voter.occupation} />}
+            {p.voter.employer && <Fact label="Employer" value={p.voter.employer} />}
+          </div>
+          {p.voter.mailing_address && (
+            <div className="mt-3 text-xs text-[var(--color-ink-subtle)]">
+              Mailing: {p.voter.mailing_address}
+              {p.voter.mailing_city ? ", " + p.voter.mailing_city : ""}
+              {p.voter.mailing_state ? ", " + p.voter.mailing_state : ""}
+              {p.voter.mailing_zip ? " " + p.voter.mailing_zip : ""}
+            </div>
+          )}
+        </section>
+      )}
+
+      {hasCivicMeta(p.voter) && (
+        <section className="mb-6">
+          <h2 className="section-label mb-2">Districts &amp; status</h2>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            {p.voter.voter_status && <Fact label="Status" value={p.voter.voter_status} />}
+            {p.voter.congressional_district && (
+              <Fact label="Congressional" value={p.voter.congressional_district} />
+            )}
+            {p.voter.state_house_district && (
+              <Fact label="State House" value={p.voter.state_house_district} />
+            )}
+            {p.voter.state_senate_district && (
+              <Fact label="State Senate" value={p.voter.state_senate_district} />
+            )}
+            {p.voter.school_district && (
+              <Fact label="School district" value={p.voter.school_district} />
+            )}
+            {p.voter.municipality_desc && (
+              <Fact label="Municipality" value={p.voter.municipality_desc} />
+            )}
+          </div>
+        </section>
+      )}
+
+      {p.voter.extra && Object.keys(p.voter.extra).length > 0 && (
+        <section className="mb-6">
+          <h2 className="section-label mb-2">Other fields from the source file</h2>
+          <p className="mb-2 text-xs text-[var(--color-ink-subtle)]">
+            Columns from your upload that didn&apos;t map to a canonical field.
+          </p>
+          <dl className="card grid grid-cols-1 gap-1 px-3 py-2 text-sm sm:grid-cols-2">
+            {Object.entries(p.voter.extra).map(([k, v]) => (
+              <div key={k} className="flex flex-col">
+                <dt className="text-[0.6875rem] uppercase tracking-wide text-[var(--color-ink-subtle)]">
+                  {k}
+                </dt>
+                <dd className="text-[var(--color-ink)]">{String(v)}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+
       {p.household.length > 0 && (
         <section className="mb-6">
           <h2 className="section-label mb-2">Household ({p.household.length})</h2>
@@ -337,6 +441,27 @@ function Fact({ label, value }: { label: string; value: string | null }) {
       <div className="mt-0.5 text-sm text-[var(--color-ink)]">{value ?? "—"}</div>
     </div>
   );
+}
+
+function hasContact(v: Voter): boolean {
+  return Boolean(
+    v.phone || v.phone_secondary || v.email || v.email_secondary || v.website ||
+      v.occupation || v.employer || v.mailing_address,
+  );
+}
+
+function hasCivicMeta(v: Voter): boolean {
+  return Boolean(
+    v.voter_status || v.congressional_district || v.state_house_district ||
+      v.state_senate_district || v.school_district || v.municipality_desc,
+  );
+}
+
+// 10-digit US phone formatter; leaves anything else as-is.
+function formatPhone(p: string): string {
+  const d = p.replace(/[^\d]/g, "");
+  if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  return p;
 }
 
 

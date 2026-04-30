@@ -193,6 +193,22 @@ function rowToVoter(
     if (v) extra[h] = v;
   }
 
+  // Phone numbers: digit-normalize but keep formatting if it includes letters
+  const normalizePhone = (raw: string | null) => {
+    if (!raw) return null;
+    const digits = raw.replace(/[^\d]/g, "");
+    if (digits.length === 10) return digits;
+    if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
+    return raw.trim();
+  };
+
+  // Email: lowercase normalized
+  const normalizeEmail = (raw: string | null) => raw ? raw.trim().toLowerCase() : null;
+
+  // Mailing address concat (optional)
+  const mailing = pick("mailing_address");
+  const mailing_address = mailing;
+
   return {
     ncid,
     list_id: listId,
@@ -213,6 +229,29 @@ function rowToVoter(
     precinct_desc: pick("precinct_desc"),
     ward_desc: pick("ward_desc"),
     municipality_desc: pick("municipality_desc"),
+
+    // New comprehensive contact + civic fields
+    phone:           normalizePhone(pick("phone")),
+    phone_secondary: normalizePhone(pick("phone_secondary")),
+    email:           normalizeEmail(pick("email")),
+    email_secondary: normalizeEmail(pick("email_secondary")),
+    website:         pick("website"),
+    occupation:      pick("occupation"),
+    employer:        pick("employer"),
+    household_id:    pick("household_id"),
+    mailing_address,
+    mailing_city:    pick("mailing_city"),
+    mailing_state:   pick("mailing_state"),
+    mailing_zip:     pick("mailing_zip"),
+    voter_status:    pick("voter_status"),
+    voter_status_reason: pick("voter_status_reason"),
+    congressional_district: pick("congressional_district"),
+    state_house_district:   pick("state_house_district"),
+    state_senate_district:  pick("state_senate_district"),
+    school_district: pick("school_district"),
+    last_updated_in_source: normalizeDate(pick("last_updated_in_source")),
+    language_preference: pick("language_preference"),
+
     extra: Object.keys(extra).length ? extra : null,
   };
 }
