@@ -1,48 +1,46 @@
 import { NextRequest } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase/server";
+import { parseOrThrow } from "@/lib/parseOrThrow";
+import { makeRequestLogger, newRequestId } from "@/lib/logger";
+import { errorToResponse, UnauthorizedError } from "@/domain/errors";
+import { manualEntry } from "@/domain/conversations";
+import { ManualEntryRequestSchema } from "@/domain/types";
 
 export const runtime = "nodejs";
 
-// Manual one-person conversation entry from /people/new. Goes through
-// record_conversation so the interaction + participant insert is atomic and
-// the audit trigger fires once.
 export async function POST(req: NextRequest) {
-  const supabase = await getSupabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-
-  const body = await req.json();
-  const captured_name = (body.captured_name as string | undefined)?.trim();
-  if (!captured_name) {
-    return Response.json({ error: "captured_name required" }, { status: 400 });
-  }
-  const captured_location = (body.captured_location as string | undefined)?.trim() || null;
-  const notes = (body.notes as string | undefined)?.trim() || null;
-  const voter_ncid = (body.voter_ncid as string | undefined) || null;
-  const match_confidence_raw = body.match_confidence;
-  const match_confidence =
-    typeof match_confidence_raw === "number" ? match_confidence_raw : null;
-
-  const { data: rpcResult, error } = await supabase.rpc("record_conversation", {
-    p_user_id: user.id,
-    p_captured_location: captured_location,
-    p_notes: notes,
-    p_participants: [
-      {
-        captured_name,
-        voter_ncid,
-        sentiment: null,
-        issues: [],
-        tags: [],
-        notes,
-        match_confidence,
-        is_primary: true,
-      },
-    ],
-    p_extra_tags: [],
+  const requestId = newRequestId();
+  const rlog = makeRequestLogger({
+    request_id: requestId,
+    route: "POST /api/interactions/manual",
   });
-  if (error || !rpcResult) {
-    return Response.json({ error: error?.message ?? "save failed" }, { status: 500 });
+  try {
+    const supabase = await getSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new UnauthorizedError("not signed in");
+
+    const body = await req.json().catch(() => ({}));
+    const input = parseOrThrow(ManualEntryRequestSchema, body);
+
+    const result = await manualEntry(supabase, user, {
+      captured_name: input.captured_name,
+      captured_location: input.captured_location ?? null,
+      notes: input.notes ?? null,
+      voter_ncid: input.voter_ncid ?? null,
+      match_confidence: input.match_confidence ?? null,
+    });
+
+    rlog.info("manual_entry.ok", { user_id: user.id, ...result });
+    return Response.json(
+      { ok: true, ...result },
+      { headers: { "x-request-id": requestId } },
+    );
+  } catch (e) {
+    rlog.error("manual_entry.failed", {
+      err: e instanceof Error ? e.message : String(e),
+    });
+    const resp = errorToResponse(e);
+    resp.headers.set("x-request-id", requestId);
+    return resp;
   }
-  return Response.json({ ok: true, ...(rpcResult as Record<string, unknown>) });
 }

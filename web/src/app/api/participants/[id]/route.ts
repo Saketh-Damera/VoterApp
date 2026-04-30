@@ -1,68 +1,80 @@
 import { NextRequest } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase/server";
+import { parseOrThrow } from "@/lib/parseOrThrow";
+import { makeRequestLogger, newRequestId } from "@/lib/logger";
+import { errorToResponse, UnauthorizedError, ValidationError } from "@/domain/errors";
+import { updateParticipant } from "@/domain/conversations";
+import { ParticipantPatchSchema } from "@/domain/types";
 
 export const runtime = "nodejs";
 
-const ALLOWED = new Set([
-  "voter_ncid",
-  "sentiment",
-  "notes",
-  "issues",
-  "tags",
-  "captured_name",
-  "relationship",
-  "match_confidence",
-]);
-
-// Patch a participant. RLS already restricts edits to participants whose
-// parent interaction is owned by the caller. If the participant is_primary,
-// mirror voter_ncid + sentiment back to the parent interaction so any reads
-// still hitting the legacy columns stay consistent.
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const requestId = newRequestId();
   const { id } = await params;
-  const supabase = await getSupabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const rlog = makeRequestLogger({
+    request_id: requestId,
+    route: "PATCH /api/participants/[id]",
+    participant_id: id,
+  });
+  try {
+    if (!id) throw new ValidationError("missing participant id", { id: "required" });
+    const supabase = await getSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new UnauthorizedError("not signed in");
 
-  const body = await req.json();
-  const patch: Record<string, unknown> = {};
-  for (const k of Object.keys(body)) {
-    if (ALLOWED.has(k)) patch[k] = body[k];
-  }
-  if (Object.keys(patch).length === 0) {
-    return Response.json({ error: "no allowed fields in payload" }, { status: 400 });
-  }
-  // Manual link: caller picked a voter from a list — set match_confidence = 1.0
-  if ("voter_ncid" in patch && patch.voter_ncid && !("match_confidence" in patch)) {
-    patch.match_confidence = 1.0;
-  }
-  if ("voter_ncid" in patch && patch.voter_ncid === null) {
-    patch.match_confidence = null;
-  }
+    const body = await req.json().catch(() => ({}));
+    const patch = parseOrThrow(ParticipantPatchSchema, body) as Record<string, unknown>;
 
-  const { data: updated, error } = await supabase
-    .from("interaction_participants")
-    .update(patch)
-    .eq("id", id)
-    .select("id, interaction_id, voter_ncid, sentiment, is_primary")
-    .single();
-  if (error || !updated) {
-    return Response.json({ error: error?.message ?? "update failed" }, { status: 400 });
+    await updateParticipant(supabase, id, patch);
+    rlog.info("participant_patch.ok", { user_id: user.id, fields: Object.keys(patch) });
+    return Response.json(
+      { ok: true },
+      { headers: { "x-request-id": requestId } },
+    );
+  } catch (e) {
+    rlog.error("participant_patch.failed", {
+      err: e instanceof Error ? e.message : String(e),
+    });
+    const resp = errorToResponse(e);
+    resp.headers.set("x-request-id", requestId);
+    return resp;
   }
-
-  // Mirror columns on interactions have been dropped; participants are the
-  // sole source of truth for voter_ncid / sentiment / etc.
-
-  return Response.json({ ok: true, participant: updated });
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const requestId = newRequestId();
   const { id } = await params;
-  const supabase = await getSupabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const rlog = makeRequestLogger({
+    request_id: requestId,
+    route: "DELETE /api/participants/[id]",
+    participant_id: id,
+  });
+  try {
+    if (!id) throw new ValidationError("missing participant id", { id: "required" });
+    const supabase = await getSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new UnauthorizedError("not signed in");
 
-  const { error } = await supabase.from("interaction_participants").delete().eq("id", id);
-  if (error) return Response.json({ error: error.message }, { status: 400 });
-  return Response.json({ ok: true });
+    const { error } = await supabase
+      .from("interaction_participants")
+      .delete()
+      .eq("id", id);
+    if (error) throw new ValidationError(error.message);
+
+    rlog.info("participant_delete.ok", { user_id: user.id });
+    return Response.json({ ok: true }, { headers: { "x-request-id": requestId } });
+  } catch (e) {
+    rlog.error("participant_delete.failed", {
+      err: e instanceof Error ? e.message : String(e),
+    });
+    const resp = errorToResponse(e);
+    resp.headers.set("x-request-id", requestId);
+    return resp;
+  }
 }
